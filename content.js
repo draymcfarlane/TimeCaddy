@@ -84,8 +84,31 @@ function createPromptDialog(hostname) {
     });
   }
   
+  function showTimeLimitReachedNotification(hostname) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ff4d4d;
+      color: white;
+      padding: 20px;
+      border-radius: 5px;
+      z-index: 10000;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    `;
+    notification.textContent = `Time limit reached for ${hostname}!`;
+    document.body.appendChild(notification);
+  
+    setTimeout(() => {
+      document.body.removeChild(notification);
+    }, 5000); // Remove notification after 5 seconds
+  }
+  
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "promptTrack") {
       createPromptDialog(request.hostname);
+    } else if (request.action === "showTimeLimitReached") {
+      showTimeLimitReachedNotification(request.hostname);
     }
   });

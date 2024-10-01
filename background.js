@@ -40,7 +40,16 @@ function handleTabChange(tabId) {
           // Ask user if they want to track this site
           chrome.tabs.sendMessage(tabId, {action: "promptTrack", hostname: hostname});
         } else if (data[hostname].limit) {
-          chrome.alarms.create(hostname, { delayInMinutes: data[hostname].limit });
+          // Check if time spent is already over the limit
+          const timeSpent = data[hostname].time || 0;
+          const limitMs = data[hostname].limit * 60 * 1000; // Convert limit to milliseconds
+          if (timeSpent < limitMs) {
+            const remainingTime = (limitMs - timeSpent) / 60000; // Convert to minutes
+            chrome.alarms.create(hostname, { delayInMinutes: remainingTime });
+          } else {
+            // Time limit already exceeded
+            chrome.tabs.sendMessage(tabId, {action: "showTimeLimitReached", hostname: hostname});
+          }
         }
       });
     }
@@ -59,14 +68,23 @@ function saveTimeForActiveTab() {
     chrome.storage.local.get(hostname, (data) => {
       if (data[hostname]) {
         const currentTime = data[hostname].time || 0;
+        const newTime = currentTime + timeSpent;
+        const limit = data[hostname].limit * 60 * 1000; // Convert limit to milliseconds
+
         chrome.storage.local.set({
           [hostname]: {
-            time: currentTime + timeSpent,
+            time: newTime,
             limit: data[hostname].limit
           }
         }, () => {
           // Notify popup to update
-          chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: currentTime + timeSpent});
+          chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: newTime});
+
+          // Check if time limit has been reached
+          if (newTime >= limit && currentTime < limit) {
+            chrome.tabs.sendMessage(activeTabId, {action: "showTimeLimitReached", hostname: hostname});
+            chrome.alarms.clear(hostname);
+          }
         });
       }
     });
@@ -80,7 +98,7 @@ function saveTimeForActiveTab() {
 chrome.alarms.onAlarm.addListener((alarm) => {
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     if (tabs[0] && new URL(tabs[0].url).hostname === alarm.name) {
-      alert(`Time limit reached for ${alarm.name}`);
+      chrome.tabs.sendMessage(tabs[0].id, {action: "showTimeLimitReached", hostname: alarm.name});
     }
   });
 });
@@ -94,9 +112,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         limit: request.limit
       }
     }, () => {
-      if (request.limit) {
-        chrome.alarms.create(request.hostname, { delayInMinutes: request.limit });
-      }
+      const limitMs = request.limit * 60 * 1000; // Convert limit to milliseconds
+      chrome.alarms.create(request.hostname, { delayInMinutes: request.limit });
       sendResponse({success: true});
     });
     return true; // Indicates we will send a response asynchronously
