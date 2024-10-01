@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Display time spent on websites
+  // Display time spent on websites
+  function updateTimeList() {
     chrome.storage.local.get(null, (data) => {
       const timeList = document.getElementById('timeList');
+      timeList.innerHTML = ''; // Clear existing list
       for (const [hostname, siteData] of Object.entries(data)) {
         const listItem = document.createElement('li');
         const timeSpent = Math.round(siteData.time / 60000); // Convert milliseconds to minutes
@@ -9,28 +11,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (siteData.limit) {
           listItem.textContent += ` (Limit: ${siteData.limit} minutes)`;
         }
+        
+        // Add remove button for each site
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.className = 'remove-btn';
+        removeBtn.onclick = () => removeSite(hostname);
+        listItem.appendChild(removeBtn);
+        
         timeList.appendChild(listItem);
       }
     });
-  
-    // Set time limit for a website
-    document.getElementById('setLimit').addEventListener('click', () => {
-      const website = document.getElementById('websiteInput').value;
-      const limit = parseInt(document.getElementById('limitInput').value);
-  
-      if (website && !isNaN(limit)) {
-        chrome.storage.local.get(website, (data) => {
-          chrome.storage.local.set({
-            [website]: {
-              time: data[website] ? data[website].time || 0 : 0,
-              limit: limit
-            }
-          }, () => {
-            alert(`Time limit set for ${website}: ${limit} minutes`);
-          });
-        });
-      } else {
-        alert('Please enter a valid website and time limit.');
-      }
+  }
+
+  // Remove a single site from tracking
+  function removeSite(hostname) {
+    chrome.storage.local.remove(hostname, () => {
+      chrome.alarms.clear(hostname);
+      updateTimeList();
     });
+  }
+
+  // Clear all tracked data
+  document.getElementById('clearAll').addEventListener('click', () => {
+    if (confirm('Are you sure you want to clear all tracked data?')) {
+      chrome.storage.local.clear(() => {
+        chrome.alarms.clearAll();
+        updateTimeList();
+      });
+    }
   });
+
+  // Initial population of the time list
+  updateTimeList();
+});
