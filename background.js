@@ -1,6 +1,7 @@
 let activeTabId = null;
 let startTime = null;
 let intervalId = null;
+let ignoredSites = new Set();
 
 // Listen for tab changes
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -33,14 +34,16 @@ function handleTabChange(tabId) {
   // Check if this tab should be tracked
   chrome.tabs.get(tabId, (tab) => {
     const hostname = new URL(tab.url).hostname;
-    chrome.storage.local.get(hostname, (data) => {
-      if (!data[hostname]) {
-        // Ask user if they want to track this site
-        chrome.tabs.sendMessage(tabId, {action: "promptTrack", hostname: hostname});
-      } else if (data[hostname].limit) {
-        chrome.alarms.create(hostname, { delayInMinutes: data[hostname].limit });
-      }
-    });
+    if (!ignoredSites.has(hostname)) {
+      chrome.storage.local.get(hostname, (data) => {
+        if (!data[hostname]) {
+          // Ask user if they want to track this site
+          chrome.tabs.sendMessage(tabId, {action: "promptTrack", hostname: hostname});
+        } else if (data[hostname].limit) {
+          chrome.alarms.create(hostname, { delayInMinutes: data[hostname].limit });
+        }
+      });
+    }
   });
 
   // Start interval for live updates
@@ -82,7 +85,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   });
 });
 
-// Listen for messages from popup
+// Listen for messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "addSite") {
     chrome.storage.local.set({
@@ -97,5 +100,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({success: true});
     });
     return true; // Indicates we will send a response asynchronously
+  } else if (request.action === "ignoreSite") {
+    ignoredSites.add(request.hostname);
+    sendResponse({success: true});
   }
 });
