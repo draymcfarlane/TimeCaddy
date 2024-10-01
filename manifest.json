@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Time Management Extension",
-  "version": "1.1",
-  "description": "Track and limit time spent on websites with user confirmation",
+  "version": "1.2",
+  "description": "Track and limit time spent on websites with live updates and tabbed interface",
   "permissions": [
     "storage",
     "tabs",

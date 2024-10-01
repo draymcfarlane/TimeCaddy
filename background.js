@@ -1,5 +1,6 @@
 let activeTabId = null;
 let startTime = null;
+let intervalId = null;
 
 // Listen for tab changes
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -20,6 +21,11 @@ function handleTabChange(tabId) {
     saveTimeForActiveTab();
   }
 
+  // Clear existing interval
+  if (intervalId) {
+    clearInterval(intervalId);
+  }
+
   // Set the new active tab and start time
   activeTabId = tabId;
   startTime = new Date();
@@ -30,39 +36,17 @@ function handleTabChange(tabId) {
     chrome.storage.local.get(hostname, (data) => {
       if (!data[hostname]) {
         // Ask user if they want to track this site
-        if (confirm(`Do you want to track time for ${hostname}?`)) {
-          const timeLimit = promptForTimeLimit();
-          if (timeLimit) {
-            chrome.storage.local.set({
-              [hostname]: {
-                time: 0,
-                limit: timeLimit
-              }
-            });
-            chrome.alarms.create(hostname, { delayInMinutes: timeLimit });
-          }
-        }
+        chrome.tabs.sendMessage(tabId, {action: "promptTrack", hostname: hostname});
       } else if (data[hostname].limit) {
         chrome.alarms.create(hostname, { delayInMinutes: data[hostname].limit });
       }
     });
   });
+
+  // Start interval for live updates
+  intervalId = setInterval(saveTimeForActiveTab, 1000); // Update every second
 }
 
-function promptForTimeLimit() {
-  const input = prompt("Enter time limit (format: 1h30m or 90m):");
-  if (input) {
-    const hours = input.match(/(\d+)h/);
-    const minutes = input.match(/(\d+)m/);
-    let totalMinutes = 0;
-    if (hours) totalMinutes += parseInt(hours[1]) * 60;
-    if (minutes) totalMinutes += parseInt(minutes[1]);
-    return totalMinutes > 0 ? totalMinutes : null;
-  }
-  return null;
-}
-
-// Save time spent on the active tab
 function saveTimeForActiveTab() {
   const endTime = new Date();
   const timeSpent = endTime - startTime;
@@ -77,10 +61,16 @@ function saveTimeForActiveTab() {
             time: currentTime + timeSpent,
             limit: data[hostname].limit
           }
+        }, () => {
+          // Notify popup to update
+          chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: currentTime + timeSpent});
         });
       }
     });
   });
+
+  // Reset start time for next interval
+  startTime = new Date();
 }
 
 // Listen for alarms (time limits reached)
@@ -90,4 +80,22 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       alert(`Time limit reached for ${alarm.name}`);
     }
   });
+});
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "addSite") {
+    chrome.storage.local.set({
+      [request.hostname]: {
+        time: 0,
+        limit: request.limit
+      }
+    }, () => {
+      if (request.limit) {
+        chrome.alarms.create(request.hostname, { delayInMinutes: request.limit });
+      }
+      sendResponse({success: true});
+    });
+    return true; // Indicates we will send a response asynchronously
+  }
 });

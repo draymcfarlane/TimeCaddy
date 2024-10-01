@@ -4,15 +4,39 @@
   <title>Time Management Extension</title>
   <style>
     body { width: 300px; font-family: Arial, sans-serif; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
     ul { list-style-type: none; padding: 0; }
     li { margin-bottom: 10px; }
     .remove-btn { margin-left: 10px; }
   </style>
 </head>
 <body>
-  <h2>Time Spent Today</h2>
-  <ul id="timeList"></ul>
-  <button id="clearAll">Clear All Data</button>
+  <div class="tabs">
+    <button class="tab-btn" data-tab="add">Add Site</button>
+    <button class="tab-btn" data-tab="track">Track Sites</button>
+    <button class="tab-btn" data-tab="manage">Manage Sites</button>
+  </div>
+
+  <div id="add" class="tab-content">
+    <h2>Add Site</h2>
+    <input type="text" id="siteInput" placeholder="Enter website (e.g., example.com)">
+    <select id="hourSelect"></select>
+    <select id="minuteSelect"></select>
+    <button id="addSite">Add Site</button>
+  </div>
+
+  <div id="track" class="tab-content">
+    <h2>Tracked Sites</h2>
+    <ul id="timeList"></ul>
+  </div>
+
+  <div id="manage" class="tab-content">
+    <h2>Manage Sites</h2>
+    <ul id="siteList"></ul>
+    <button id="clearAll">Clear All Data</button>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
