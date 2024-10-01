@@ -2,6 +2,7 @@
 Time management browser extension
 
 To do:
+- [X] Initial release and bug fixing.
 - [ ] When the timer stops, the prompt should cover the entire specific tab with a slight transparent background. 
 - [ ] When the timer stops, ask the user if they would like to extend, stop or pause.
 - [ ] Improve UI
