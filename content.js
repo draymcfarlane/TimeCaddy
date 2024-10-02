@@ -1,4 +1,4 @@
-// content.js
+let overlayElement = null;
 
 function createPromptDialog(hostname) {
   const dialog = document.createElement('div');
@@ -9,7 +9,7 @@ function createPromptDialog(hostname) {
     background: white;
     border: 1px solid #ccc;
     padding: 20px;
-    z-index: 10000;
+    z-index: 2147483647;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
   `;
   dialog.innerHTML = `
@@ -39,7 +39,7 @@ function showTimeLimitPrompt(hostname) {
     background: white;
     border: 1px solid #ccc;
     padding: 20px;
-    z-index: 10000;
+    z-index: 2147483647;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
   `;
   dialog.innerHTML = `
@@ -96,9 +96,13 @@ function showTimeLimitReachedNotification(hostname) {
       return;
     }
 
-    const overlay = document.createElement('div');
-    overlay.id = 'timeLimit-overlay';
-    overlay.style.cssText = `
+    if (overlayElement) {
+      // If an overlay already exists, remove it
+      document.body.removeChild(overlayElement);
+    }
+
+    overlayElement = document.createElement('div');
+    overlayElement.style.cssText = `
       position: fixed;
       top: 0;
       left: 0;
@@ -134,24 +138,27 @@ function showTimeLimitReachedNotification(hostname) {
       ">Dismiss for 5 minutes</button>
     `;
 
-    overlay.appendChild(notification);
-    document.body.appendChild(overlay);
+    overlayElement.appendChild(notification);
+    document.body.appendChild(overlayElement);
 
-    document.getElementById('dismissBtn').addEventListener('click', () => {
-      const overlayElement = document.getElementById('timeLimit-overlay');
-      if (overlayElement) {
-        document.body.removeChild(overlayElement);
-      }
-      
-      // Set dismissal time for 5 minutes from now
-      dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
-      chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
-        // Schedule the notification to reappear after 5 minutes
-        setTimeout(() => {
-          showTimeLimitReachedNotification(hostname);
-        }, 5 * 60 * 1000);
+    const dismissBtn = document.getElementById('dismissBtn');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        if (overlayElement) {
+          document.body.removeChild(overlayElement);
+          overlayElement = null;
+        }
+        
+        // Set dismissal time for 5 minutes from now
+        dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
+        chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
+          // Schedule the notification to reappear after 5 minutes
+          setTimeout(() => {
+            showTimeLimitReachedNotification(hostname);
+          }, 5 * 60 * 1000);
+        });
       });
-    });
+    }
   });
 }
 
@@ -172,5 +179,13 @@ chrome.storage.local.get(null, (data) => {
     if (timeSpent >= limitMs) {
       showTimeLimitReachedNotification(hostname);
     }
+  }
+});
+
+// Ensure overlay is removed when navigating away from the page
+window.addEventListener('beforeunload', () => {
+  if (overlayElement) {
+    document.body.removeChild(overlayElement);
+    overlayElement = null;
   }
 });
