@@ -1,3 +1,5 @@
+// content.js
+
 function createPromptDialog(hostname) {
   const dialog = document.createElement('div');
   dialog.style.cssText = `
@@ -95,6 +97,7 @@ function showTimeLimitReachedNotification(hostname) {
     }
 
     const overlay = document.createElement('div');
+    overlay.id = 'timeLimit-overlay';
     overlay.style.cssText = `
       position: fixed;
       top: 0;
@@ -135,7 +138,10 @@ function showTimeLimitReachedNotification(hostname) {
     document.body.appendChild(overlay);
 
     document.getElementById('dismissBtn').addEventListener('click', () => {
-      document.body.removeChild(overlay);
+      const overlayElement = document.getElementById('timeLimit-overlay');
+      if (overlayElement) {
+        document.body.removeChild(overlayElement);
+      }
       
       // Set dismissal time for 5 minutes from now
       dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
