@@ -39,7 +39,7 @@ function handleTabChange(tabId) {
         if (!data[hostname]) {
           // Ask user if they want to track this site
           chrome.tabs.sendMessage(tabId, {action: "promptTrack", hostname: hostname});
-        } else if (data[hostname].limit) {
+        } else if (data[hostname].limit && data[hostname].isTracking) {
           // Check if time spent is already over the limit
           const timeSpent = data[hostname].time || 0;
           const limitMs = data[hostname].limit * 60 * 1000; // Convert limit to milliseconds
@@ -66,15 +66,15 @@ function saveTimeForActiveTab() {
   chrome.tabs.get(activeTabId, (tab) => {
     const hostname = new URL(tab.url).hostname;
     chrome.storage.local.get(hostname, (data) => {
-      if (data[hostname]) {
+      if (data[hostname] && data[hostname].isTracking) {
         const currentTime = data[hostname].time || 0;
         const newTime = currentTime + timeSpent;
         const limit = data[hostname].limit * 60 * 1000; // Convert limit to milliseconds
 
         chrome.storage.local.set({
           [hostname]: {
-            time: newTime,
-            limit: data[hostname].limit
+            ...data[hostname],
+            time: newTime
           }
         }, () => {
           // Notify popup to update
@@ -109,16 +109,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.storage.local.set({
       [request.hostname]: {
         time: 0,
-        limit: request.limit
+        limit: request.limit,
+        isTracking: true
       }
     }, () => {
-      const limitMs = request.limit * 60 * 1000; // Convert limit to milliseconds
-      chrome.alarms.create(request.hostname, { delayInMinutes: request.limit });
+      if (request.limit) {
+        chrome.alarms.create(request.hostname, { delayInMinutes: request.limit });
+      }
       sendResponse({success: true});
     });
     return true; // Indicates we will send a response asynchronously
   } else if (request.action === "ignoreSite") {
     ignoredSites.add(request.hostname);
     sendResponse({success: true});
+  } else if (request.action === "updateSiteLimit") {
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname] || {};
+      siteData.limit = request.newLimit;
+      chrome.storage.local.set({
+        [request.hostname]: siteData
+      }, () => {
+        chrome.alarms.clear(request.hostname);
+        const remainingTime = (siteData.limit * 60 * 1000 - (siteData.time || 0)) / 60000;
+        if (remainingTime > 0) {
+          chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
+        }
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "stopTracking") {
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname] || {};
+      siteData.isTracking = false;
+      chrome.storage.local.set({
+        [request.hostname]: siteData
+      }, () => {
+        chrome.alarms.clear(request.hostname);
+        sendResponse({success: true});
+      });
+    });
+    return true;
   }
 });

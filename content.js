@@ -87,9 +87,10 @@ function showTimeLimitPrompt(hostname) {
 }
 
 function showTimeLimitReachedNotification(hostname) {
-  chrome.storage.local.get('dismissedNotifications', (result) => {
+  chrome.storage.local.get(['dismissedNotifications', hostname], (result) => {
     const dismissedNotifications = result.dismissedNotifications || {};
     const currentTime = Date.now();
+    const siteData = result[hostname] || {};
     
     if (dismissedNotifications[hostname] && dismissedNotifications[hostname] > currentTime) {
       // Notification is still dismissed, don't show it
@@ -126,12 +127,32 @@ function showTimeLimitReachedNotification(hostname) {
     `;
     notification.innerHTML = `
       <p>Time limit reached for ${hostname}!</p>
+      <button id="extendBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Extend Time</button>
+      <button id="stopBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Stop Tracking</button>
       <button id="dismissBtn" style="
         background: white;
         color: #ff4d4d;
         border: none;
         padding: 10px 20px;
-        margin-top: 10px;
+        margin: 10px;
         border-radius: 5px;
         cursor: pointer;
         font-size: 18px;
@@ -141,24 +162,50 @@ function showTimeLimitReachedNotification(hostname) {
     overlayElement.appendChild(notification);
     document.body.appendChild(overlayElement);
 
-    const dismissBtn = document.getElementById('dismissBtn');
-    if (dismissBtn) {
-      dismissBtn.addEventListener('click', () => {
+    document.getElementById('extendBtn').addEventListener('click', () => {
+      const additionalTime = prompt("Enter additional time in minutes:", "30");
+      if (additionalTime !== null) {
+        const newLimit = siteData.limit + parseInt(additionalTime);
+        chrome.runtime.sendMessage({
+          action: "updateSiteLimit",
+          hostname: hostname,
+          newLimit: newLimit
+        }, () => {
+          if (overlayElement) {
+            document.body.removeChild(overlayElement);
+            overlayElement = null;
+          }
+        });
+      }
+    });
+
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: "stopTracking",
+        hostname: hostname
+      }, () => {
         if (overlayElement) {
           document.body.removeChild(overlayElement);
           overlayElement = null;
         }
-        
-        // Set dismissal time for 5 minutes from now
-        dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
-        chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
-          // Schedule the notification to reappear after 5 minutes
-          setTimeout(() => {
-            showTimeLimitReachedNotification(hostname);
-          }, 5 * 60 * 1000);
-        });
       });
-    }
+    });
+
+    document.getElementById('dismissBtn').addEventListener('click', () => {
+      if (overlayElement) {
+        document.body.removeChild(overlayElement);
+        overlayElement = null;
+      }
+      
+      // Set dismissal time for 5 minutes from now
+      dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
+      chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
+        // Schedule the notification to reappear after 5 minutes
+        setTimeout(() => {
+          showTimeLimitReachedNotification(hostname);
+        }, 5 * 60 * 1000);
+      });
+    });
   });
 }
 
@@ -173,7 +220,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Check for time limit reached on page load
 chrome.storage.local.get(null, (data) => {
   const hostname = window.location.hostname;
-  if (data[hostname] && data[hostname].limit) {
+  if (data[hostname] && data[hostname].limit && data[hostname].isTracking) {
     const timeSpent = data[hostname].time || 0;
     const limitMs = data[hostname].limit * 60 * 1000;
     if (timeSpent >= limitMs) {

@@ -13,17 +13,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const timeList = document.getElementById('timeList');
       timeList.innerHTML = ''; // Clear existing list
       for (const [hostname, siteData] of Object.entries(data)) {
-        const listItem = document.createElement('li');
-        const timeSpent = siteData.time / 1000; // Convert milliseconds to seconds
-        const hours = Math.floor(timeSpent / 3600);
-        const minutes = Math.floor((timeSpent % 3600) / 60);
-        const seconds = Math.floor(timeSpent % 60);
-        const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
-        listItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
-        if (siteData.limit) {
-          listItem.textContent += ` (Limit: ${siteData.limit} minutes)`;
+        if (siteData.isTracking) {
+          const listItem = document.createElement('li');
+          const timeSpent = siteData.time / 1000; // Convert milliseconds to seconds
+          const hours = Math.floor(timeSpent / 3600);
+          const minutes = Math.floor((timeSpent % 3600) / 60);
+          const seconds = Math.floor(timeSpent % 60);
+          const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
+          listItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
+          if (siteData.limit) {
+            listItem.textContent += ` (Limit: ${siteData.limit} minutes)`;
+          }
+          timeList.appendChild(listItem);
         }
-        timeList.appendChild(listItem);
       }
     });
   }
@@ -36,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const [hostname, siteData] of Object.entries(data)) {
         const listItem = document.createElement('li');
         const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
-        listItem.textContent = `${websiteName} (Limit: ${siteData.limit} minutes)`;
+        listItem.textContent = `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
         
         // Add remove button for each site
         const removeBtn = document.createElement('button');
