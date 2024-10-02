@@ -85,51 +85,67 @@ function showTimeLimitPrompt(hostname) {
 }
 
 function showTimeLimitReachedNotification(hostname) {
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2147483647;
-  `;
+  chrome.storage.local.get('dismissedNotifications', (result) => {
+    const dismissedNotifications = result.dismissedNotifications || {};
+    const currentTime = Date.now();
+    
+    if (dismissedNotifications[hostname] && dismissedNotifications[hostname] > currentTime) {
+      // Notification is still dismissed, don't show it
+      return;
+    }
 
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    background: #ff4d4d;
-    color: white;
-    padding: 20px;
-    border-radius: 5px;
-    font-size: 24px;
-    text-align: center;
-  `;
-  notification.innerHTML = `
-    <p>Time limit reached for ${hostname}!</p>
-    <button id="dismissBtn" style="
-      background: white;
-      color: #ff4d4d;
-      border: none;
-      padding: 10px 20px;
-      margin-top: 10px;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2147483647;
+    `;
+
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      background: #ff4d4d;
+      color: white;
+      padding: 20px;
       border-radius: 5px;
-      cursor: pointer;
-      font-size: 18px;
-    ">Dismiss for 5 minutes</button>
-  `;
+      font-size: 24px;
+      text-align: center;
+    `;
+    notification.innerHTML = `
+      <p>Time limit reached for ${hostname}!</p>
+      <button id="dismissBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin-top: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Dismiss for 5 minutes</button>
+    `;
 
-  overlay.appendChild(notification);
-  document.body.appendChild(overlay);
+    overlay.appendChild(notification);
+    document.body.appendChild(overlay);
 
-  document.getElementById('dismissBtn').addEventListener('click', () => {
-    document.body.removeChild(overlay);
-    setTimeout(() => {
-      showTimeLimitReachedNotification(hostname);
-    }, 5 * 60 * 1000); // Show again after 5 minutes
+    document.getElementById('dismissBtn').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      
+      // Set dismissal time for 5 minutes from now
+      dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
+      chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
+        // Schedule the notification to reappear after 5 minutes
+        setTimeout(() => {
+          showTimeLimitReachedNotification(hostname);
+        }, 5 * 60 * 1000);
+      });
+    });
   });
 }
 
@@ -138,5 +154,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     createPromptDialog(request.hostname);
   } else if (request.action === "showTimeLimitReached") {
     showTimeLimitReachedNotification(request.hostname);
+  }
+});
+
+// Check for time limit reached on page load
+chrome.storage.local.get(null, (data) => {
+  const hostname = window.location.hostname;
+  if (data[hostname] && data[hostname].limit) {
+    const timeSpent = data[hostname].time || 0;
+    const limitMs = data[hostname].limit * 60 * 1000;
+    if (timeSpent >= limitMs) {
+      showTimeLimitReachedNotification(hostname);
+    }
   }
 });
