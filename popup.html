@@ -3,18 +3,48 @@
 <head>
   <title>Time Management Extension</title>
   <style>
-    body { width: 300px; font-family: Arial, sans-serif; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-    ul { list-style-type: none; padding: 0; }
-    li { margin-bottom: 10px; }
-    .remove-btn { margin-left: 10px; }
+    body {
+      width: 300px;
+      font-family: Arial, sans-serif;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 5px;
+      background: #f0f0f0;
+      border: none;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: #e0e0e0;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .reminder-input, .category-input {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    button {
+      margin-right: 5px;
+    }
   </style>
 </head>
 <body>
   <div class="tabs">
     <button class="tab-btn" data-tab="track">Track Sites</button>
     <button class="tab-btn" data-tab="manage">Manage Sites</button>
+    <button class="tab-btn" data-tab="reminders">Reminders</button>
+    <button class="tab-btn" data-tab="categories">Categories</button>
   </div>
 
   <div id="track" class="tab-content">
@@ -26,6 +56,22 @@
     <h2>Manage Sites</h2>
     <ul id="siteList"></ul>
     <button id="clearAll">Clear All Data</button>
+  </div>
+
+  <div id="reminders" class="tab-content">
+    <h2>Custom Reminders</h2>
+    <input type="text" id="reminderText" class="reminder-input" placeholder="Enter your reminder message">
+    <input type="number" id="reminderPercentage" class="reminder-input" placeholder="Percentage of time limit (e.g. 75)">
+    <button id="addReminder">Add Reminder</button>
+    <ul id="reminderList"></ul>
+  </div>
+
+  <div id="categories" class="tab-content">
+    <h2>Website Categories</h2>
+    <input type="text" id="categoryName" class="category-input" placeholder="Enter category name">
+    <input type="number" id="categoryLimit" class="category-input" placeholder="Category time limit (minutes)">
+    <button id="addCategory">Add Category</button>
+    <ul id="categoryList"></ul>
   </div>
 
   <script src="popup.js"></script>

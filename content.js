@@ -87,10 +87,11 @@ function showTimeLimitPrompt(hostname) {
 }
 
 function showTimeLimitReachedNotification(hostname) {
-  chrome.storage.local.get(['dismissedNotifications', hostname], (result) => {
+  chrome.storage.local.get(['dismissedNotifications', hostname, 'categories'], (result) => {
     const dismissedNotifications = result.dismissedNotifications || {};
     const currentTime = Date.now();
     const siteData = result[hostname] || {};
+    const categories = result.categories || {};
     
     if (dismissedNotifications[hostname] && dismissedNotifications[hostname] > currentTime) {
       // Notification is still dismissed, don't show it
@@ -125,8 +126,17 @@ function showTimeLimitReachedNotification(hostname) {
       font-size: 24px;
       text-align: center;
     `;
+
+    let limitType = 'site';
+    if (siteData.category && categories[siteData.category]) {
+      const categoryLimit = categories[siteData.category] * 60 * 1000;
+      if (siteData.time >= categoryLimit) {
+        limitType = 'category';
+      }
+    }
+
     notification.innerHTML = `
-      <p>Time limit reached for ${hostname}!</p>
+      <p>Time limit reached for ${hostname}! (${limitType} limit)</p>
       <button id="extendBtn" style="
         background: white;
         color: #ff4d4d;
@@ -209,11 +219,34 @@ function showTimeLimitReachedNotification(hostname) {
   });
 }
 
+function showCustomReminder(message) {
+  const reminderElement = document.createElement('div');
+  reminderElement.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 20px;
+    border-radius: 5px;
+    z-index: 2147483647;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  `;
+  reminderElement.textContent = message;
+  document.body.appendChild(reminderElement);
+
+  setTimeout(() => {
+    document.body.removeChild(reminderElement);
+  }, 5000);
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "promptTrack") {
     createPromptDialog(request.hostname);
   } else if (request.action === "showTimeLimitReached") {
     showTimeLimitReachedNotification(request.hostname);
+  } else if (request.action === "showCustomReminder") {
+    showCustomReminder(request.message);
   }
 });
 
