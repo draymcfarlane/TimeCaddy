@@ -37,12 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Display managed sites
   function updateSiteList() {
-    chrome.storage.local.get(null, (data) => {
-      console.log("Current storage state:", data);
-      const siteList = document.getElementById('siteList');
-      siteList.innerHTML = ''; // Clear existing list
-      chrome.storage.sync.get('categories', (categoryData) => {
-        const categories = categoryData.categories || [];
+    chrome.storage.sync.get('categories', (categoryData) => {
+      const categories = categoryData.categories || [];
+      chrome.storage.local.get(null, (data) => {
+        console.log("Updating site list with data:", data);
+        const siteList = document.getElementById('siteList');
+        siteList.innerHTML = ''; // Clear existing list
         for (const [hostname, siteData] of Object.entries(data)) {
           if (typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')) {
             const listItem = document.createElement('li');
@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             siteList.appendChild(listItem);
           }
         }
+        console.log("Site list updated");
       });
     });
   }
@@ -190,10 +191,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hasChanges) {
           chrome.storage.local.set(data, () => {
             console.log("Sites deleted:", hostnamesToDelete);
-            updateSiteList();
-            updateTimeList();
-            debugStorage();
+            chrome.storage.local.get(null, (updatedData) => {
+              console.log("Updated storage contents:", updatedData);
+              updateSiteList();
+              updateTimeList();
+            });
           });
+        } else {
+          console.log("No changes were made to storage.");
         }
       });
     }
@@ -303,15 +308,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   addCategoryBtn.addEventListener('click', addCategory);
 
-  // Debugging function
-  function debugStorage() {
+  // Helper function to log storage contents (for debugging)
+  function logStorageContents() {
     chrome.storage.local.get(null, (data) => {
-      console.log("Current storage state:", data);
+      console.log("Current storage contents:", data);
     });
   }
 
-  // Debug button
-  document.getElementById('debugBtn').addEventListener('click', debugStorage);
+  // Add a debug button to check storage contents
+  function addDebugButton() {
+    const debugBtn = document.createElement('button');
+    debugBtn.textContent = 'Debug';
+    debugBtn.id = 'debugBtn';
+    debugBtn.addEventListener('click', logStorageContents);
+    document.getElementById('manage').appendChild(debugBtn);
+  }
 
   // Initial population of the lists
   updateTimeList();
@@ -319,10 +330,16 @@ document.addEventListener('DOMContentLoaded', () => {
   updateReminderList();
   updateCategoryList();
 
+  // Add debug button
+  addDebugButton();
+
   // Listen for live updates
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "updateTime") {
       updateTimeList();
     }
   });
+
+  // Log initial storage contents
+  logStorageContents();
 });
