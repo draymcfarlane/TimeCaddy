@@ -122,17 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Clear all tracked data
-  document.getElementById('clearAll').addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all tracked data?')) {
-      chrome.storage.local.clear(() => {
-        chrome.alarms.clearAll();
-        updateSiteList();
-        updateTimeList();
-      });
-    }
-  });
-
   // Edit mode toggle
   const editBtn = document.createElement('button');
   editBtn.textContent = 'Edit';
