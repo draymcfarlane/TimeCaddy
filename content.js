@@ -1,36 +1,53 @@
 let overlayElement = null;
 
 function createPromptDialog(hostname) {
-  const dialog = document.createElement('div');
-  dialog.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: white;
-    border: 1px solid #ccc;
-    padding: 20px;
-    z-index: 2147483647;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  `;
-  dialog.innerHTML = `
-    <p>Do you want to track time for ${hostname}?</p>
-    <button id="yesBtn">Yes</button>
-    <button id="noBtn">No</button>
-  `;
-  document.body.appendChild(dialog);
+  chrome.storage.sync.get('categories', (data) => {
+    const categories = data.categories || [];
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 20px;
+      z-index: 2147483647;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    `;
+    dialog.innerHTML = `
+      <p>Do you want to track time for ${hostname}?</p>
+      <select id="categorySelect">
+        <option value="">Select a category</option>
+        ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+        <option value="new">Create new category</option>
+      </select>
+      <button id="yesBtn">Yes</button>
+      <button id="noBtn">No</button>
+    `;
+    document.body.appendChild(dialog);
 
-  document.getElementById('yesBtn').addEventListener('click', () => {
-    document.body.removeChild(dialog);
-    showTimeLimitPrompt(hostname);
-  });
+    document.getElementById('yesBtn').addEventListener('click', () => {
+      const categorySelect = document.getElementById('categorySelect');
+      let category = categorySelect.value;
+      if (category === 'new') {
+        category = prompt("Enter new category name:");
+        if (category) {
+          categories.push(category);
+          chrome.storage.sync.set({ categories });
+        }
+      }
+      document.body.removeChild(dialog);
+      showTimeLimitPrompt(hostname, category);
+    });
 
-  document.getElementById('noBtn').addEventListener('click', () => {
-    document.body.removeChild(dialog);
-    chrome.runtime.sendMessage({action: "ignoreSite", hostname: hostname});
+    document.getElementById('noBtn').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      chrome.runtime.sendMessage({action: "ignoreSite", hostname: hostname});
+    });
   });
 }
 
-function showTimeLimitPrompt(hostname) {
+function showTimeLimitPrompt(hostname, category) {
   const dialog = document.createElement('div');
   dialog.style.cssText = `
     position: fixed;
@@ -75,7 +92,8 @@ function showTimeLimitPrompt(hostname) {
     chrome.runtime.sendMessage({
       action: "addSite",
       hostname: hostname,
-      limit: limit
+      limit: limit,
+      category: category
     }, (response) => {
       if (response.success) {
         alert(`Site ${hostname} added successfully!`);
@@ -87,11 +105,10 @@ function showTimeLimitPrompt(hostname) {
 }
 
 function showTimeLimitReachedNotification(hostname) {
-  chrome.storage.local.get(['dismissedNotifications', hostname, 'categories'], (result) => {
+  chrome.storage.local.get(['dismissedNotifications', hostname], (result) => {
     const dismissedNotifications = result.dismissedNotifications || {};
     const currentTime = Date.now();
     const siteData = result[hostname] || {};
-    const categories = result.categories || {};
     
     if (dismissedNotifications[hostname] && dismissedNotifications[hostname] > currentTime) {
       // Notification is still dismissed, don't show it
@@ -127,16 +144,8 @@ function showTimeLimitReachedNotification(hostname) {
       text-align: center;
     `;
 
-    let limitType = 'site';
-    if (siteData.category && categories[siteData.category]) {
-      const categoryLimit = categories[siteData.category] * 60 * 1000;
-      if (siteData.time >= categoryLimit) {
-        limitType = 'category';
-      }
-    }
-
     notification.innerHTML = `
-      <p>Time limit reached for ${hostname}! (${limitType} limit)</p>
+      <p>Time limit reached for ${hostname}!</p>
       <button id="extendBtn" style="
         background: white;
         color: #ff4d4d;
@@ -223,14 +232,14 @@ function showCustomReminder(message) {
   const reminderElement = document.createElement('div');
   reminderElement.style.cssText = `
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
+    right: 0;
     background: #4CAF50;
     color: white;
-    padding: 20px;
-    border-radius: 5px;
+    padding: 10px;
+    text-align: center;
     z-index: 2147483647;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
   `;
   reminderElement.textContent = message;
   document.body.appendChild(reminderElement);

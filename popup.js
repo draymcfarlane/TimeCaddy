@@ -35,34 +35,36 @@ document.addEventListener('DOMContentLoaded', () => {
    
      // Display managed sites
      function updateSiteList() {
-       chrome.storage.local.get(['categories', null], (data) => {
-         const categories = data.categories || {};
-         const siteList = document.getElementById('siteList');
-         siteList.innerHTML = ''; // Clear existing list
-         for (const [hostname, siteData] of Object.entries(data)) {
-           if (hostname !== 'categories' && hostname !== 'reminders') {
-             const listItem = document.createElement('li');
-             const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
-             listItem.textContent = `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
-             
-             const categorySelect = document.createElement('select');
-             categorySelect.innerHTML = '<option value="">No Category</option>';
-             for (const category of Object.keys(categories)) {
-               categorySelect.innerHTML += `<option value="${category}" ${siteData.category === category ? 'selected' : ''}>${category}</option>`;
+       chrome.storage.sync.get('categories', (categoryData) => {
+         const categories = categoryData.categories || [];
+         chrome.storage.local.get(null, (data) => {
+           const siteList = document.getElementById('siteList');
+           siteList.innerHTML = ''; // Clear existing list
+           for (const [hostname, siteData] of Object.entries(data)) {
+             if (typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')) {
+               const listItem = document.createElement('li');
+               const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
+               listItem.textContent = `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+               
+               const categorySelect = document.createElement('select');
+               categorySelect.innerHTML = '<option value="">No Category</option>';
+               categories.forEach(category => {
+                 categorySelect.innerHTML += `<option value="${category}" ${siteData.category === category ? 'selected' : ''}>${category}</option>`;
+               });
+               categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
+               
+               listItem.appendChild(categorySelect);
+               
+               const removeBtn = document.createElement('button');
+               removeBtn.textContent = 'Remove';
+               removeBtn.className = 'remove-btn';
+               removeBtn.onclick = () => removeSite(hostname);
+               listItem.appendChild(removeBtn);
+               
+               siteList.appendChild(listItem);
              }
-             categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
-             
-             listItem.appendChild(categorySelect);
-             
-             const removeBtn = document.createElement('button');
-             removeBtn.textContent = 'Remove';
-             removeBtn.className = 'remove-btn';
-             removeBtn.onclick = () => removeSite(hostname);
-             listItem.appendChild(removeBtn);
-             
-             siteList.appendChild(listItem);
            }
-         }
+         });
        });
      }
    
@@ -70,7 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
      function removeSite(hostname) {
        chrome.storage.local.remove(hostname, () => {
          chrome.alarms.clear(hostname);
-         updateSiteLists();
+         updateSiteList();
+         updateTimeList();
        });
      }
    
@@ -88,16 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
        if (confirm('Are you sure you want to clear all tracked data?')) {
          chrome.storage.local.clear(() => {
            chrome.alarms.clearAll();
-           updateSiteLists();
+           updateSiteList();
+           updateTimeList();
          });
        }
      });
-   
-     // Update both site lists
-     function updateSiteLists() {
-       updateTimeList();
-       updateSiteList();
-     }
    
      // Reminder functionality
      const reminderText = document.getElementById('reminderText');
@@ -106,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
      const reminderList = document.getElementById('reminderList');
    
      function updateReminderList() {
-       chrome.storage.local.get('reminders', (data) => {
+       chrome.storage.sync.get('reminders', (data) => {
          const reminders = data.reminders || [];
          reminderList.innerHTML = '';
          reminders.forEach((reminder, index) => {
@@ -125,10 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
        const text = reminderText.value.trim();
        const percentage = parseInt(reminderPercentage.value);
        if (text && percentage > 0 && percentage < 100) {
-         chrome.storage.local.get('reminders', (data) => {
+         chrome.storage.sync.get('reminders', (data) => {
            const reminders = data.reminders || [];
            reminders.push({ text, percentage });
-           chrome.storage.local.set({ reminders }, () => {
+           chrome.storage.sync.set({ reminders }, () => {
              updateReminderList();
              reminderText.value = '';
              reminderPercentage.value = '';
@@ -138,10 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
      }
    
      function removeReminder(index) {
-       chrome.storage.local.get('reminders', (data) => {
+       chrome.storage.sync.get('reminders', (data) => {
          const reminders = data.reminders || [];
          reminders.splice(index, 1);
-         chrome.storage.local.set({ reminders }, updateReminderList);
+         chrome.storage.sync.set({ reminders }, updateReminderList);
        });
      }
    
@@ -149,54 +147,54 @@ document.addEventListener('DOMContentLoaded', () => {
    
      // Category functionality
      const categoryName = document.getElementById('categoryName');
-     const categoryLimit = document.getElementById('categoryLimit');
      const addCategoryBtn = document.getElementById('addCategory');
      const categoryList = document.getElementById('categoryList');
    
      function updateCategoryList() {
-       chrome.storage.local.get('categories', (data) => {
-         const categories = data.categories || {};
+       chrome.storage.sync.get('categories', (data) => {
+         const categories = data.categories || [];
          categoryList.innerHTML = '';
-         for (const [name, limit] of Object.entries(categories)) {
+         categories.forEach((category, index) => {
            const li = document.createElement('li');
-           li.textContent = `${name} (Limit: ${limit} minutes)`;
+           li.textContent = category;
            const removeBtn = document.createElement('button');
            removeBtn.textContent = 'Remove';
-           removeBtn.onclick = () => removeCategory(name);
+           removeBtn.onclick = () => removeCategory(index);
            li.appendChild(removeBtn);
            categoryList.appendChild(li);
-         }
+         });
        });
      }
    
      function addCategory() {
        const name = categoryName.value.trim();
-       const limit = parseInt(categoryLimit.value);
-       if (name && limit > 0) {
-         chrome.storage.local.get('categories', (data) => {
-           const categories = data.categories || {};
-           categories[name] = limit;
-           chrome.storage.local.set({ categories }, () => {
-             updateCategoryList();
-             categoryName.value = '';
-             categoryLimit.value = '';
-           });
+       if (name) {
+         chrome.storage.sync.get('categories', (data) => {
+           const categories = data.categories || [];
+           if (!categories.includes(name)) {
+             categories.push(name);
+             chrome.storage.sync.set({ categories }, () => {
+               updateCategoryList();
+               categoryName.value = '';
+             });
+           }
          });
        }
      }
    
-     function removeCategory(name) {
-       chrome.storage.local.get('categories', (data) => {
-         const categories = data.categories || {};
-         delete categories[name];
-         chrome.storage.local.set({ categories }, updateCategoryList);
+     function removeCategory(index) {
+       chrome.storage.sync.get('categories', (data) => {
+         const categories = data.categories || [];
+         categories.splice(index, 1);
+         chrome.storage.sync.set({ categories }, updateCategoryList);
        });
      }
    
      addCategoryBtn.addEventListener('click', addCategory);
    
      // Initial population of the lists
-     updateSiteLists();
+     updateTimeList();
+     updateSiteList();
      updateReminderList();
      updateCategoryList();
    
