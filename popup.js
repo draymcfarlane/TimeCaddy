@@ -177,15 +177,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (hostnamesToDelete.length > 0 && confirm(`Are you sure you want to delete ${hostnamesToDelete.length} selected sites?`)) {
       chrome.storage.local.get(null, (data) => {
+        let hasChanges = false;
         hostnamesToDelete.forEach(hostname => {
-          delete data[hostname];
-          chrome.alarms.clear(hostname);
+          if (data[hostname]) {
+            delete data[hostname];
+            chrome.alarms.clear(hostname);
+            hasChanges = true;
+          }
         });
         
-        chrome.storage.local.set(data, () => {
-          updateSiteList();
-          updateTimeList();
-        });
+        if (hasChanges) {
+          chrome.storage.local.set(data, () => {
+            updateSiteList();
+            updateTimeList();
+          });
+        }
       });
     }
   }
