@@ -1,3 +1,15 @@
+// Preset categories
+const presetCategories = [
+  { name: "Social Media", suggestedLimit: 30 },
+  { name: "Video Streaming", suggestedLimit: 60 },
+  { name: "Gaming", suggestedLimit: 60 },
+  { name: "News", suggestedLimit: 30 },
+  { name: "Productivity", suggestedLimit: 120 },
+  { name: "Education", suggestedLimit: 90 },
+  { name: "Shopping", suggestedLimit: 30 },
+  { name: "Other", suggestedLimit: 60 }
+];
+
 document.addEventListener('DOMContentLoaded', () => {
   let isEditMode = false;
 
@@ -43,54 +55,68 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Updating site list with data:", data);
         const siteList = document.getElementById('siteList');
         siteList.innerHTML = ''; // Clear existing list
-        for (const [hostname, siteData] of Object.entries(data)) {
-          if (typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')) {
-            const listItem = document.createElement('li');
-            
-            if (isEditMode) {
-              const checkbox = document.createElement('input');
-              checkbox.type = 'checkbox';
-              checkbox.className = 'site-checkbox';
-              checkbox.dataset.hostname = hostname;
-              listItem.appendChild(checkbox);
-            }
-            
-            const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
-            listItem.innerHTML += `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
-            
-            const categorySelect = document.createElement('select');
-            categorySelect.innerHTML = '<option value="">No Category</option>';
-            categories.forEach(category => {
-              categorySelect.innerHTML += `<option value="${category.name}" ${siteData.category === category.name ? 'selected' : ''}>${category.name}</option>`;
-            });
-            categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
-            
-            listItem.appendChild(categorySelect);
-            
-            const buttonContainer = document.createElement('div');
-            buttonContainer.style.marginTop = '5px';
-            
-            if (!siteData.isTracking) {
-              const rerunBtn = document.createElement('button');
-              rerunBtn.textContent = 'Rerun';
-              rerunBtn.onclick = () => rerunTracking(hostname);
-              buttonContainer.appendChild(rerunBtn);
-            }
-            
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = 'Remove';
-            removeBtn.className = 'remove-btn';
-            removeBtn.onclick = () => removeSite(hostname);
-            removeBtn.style.marginLeft = '5px';
-            buttonContainer.appendChild(removeBtn);
-            
-            listItem.appendChild(buttonContainer);
+        
+        const sites = Object.entries(data).filter(([hostname, siteData]) => 
+          typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')
+        );
+        
+        if (sites.length === 0) {
+          siteList.innerHTML = '<li>No sites are currently being tracked.</li>';
+        } else {
+          sites.forEach(([hostname, siteData]) => {
+            const listItem = createSiteListItem(hostname, siteData, categories);
             siteList.appendChild(listItem);
-          }
+          });
         }
+        
         console.log("Site list updated");
       });
     });
+  }
+
+  function createSiteListItem(hostname, siteData, categories) {
+    const listItem = document.createElement('li');
+    
+    if (isEditMode) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'site-checkbox';
+      checkbox.dataset.hostname = hostname;
+      listItem.appendChild(checkbox);
+    }
+    
+    const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
+    listItem.innerHTML += `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    
+    const categorySelect = document.createElement('select');
+    categorySelect.innerHTML = '<option value="">No Category</option>';
+    categories.forEach(category => {
+      categorySelect.innerHTML += `<option value="${category.name}" ${siteData.category === category.name ? 'selected' : ''}>${category.name}</option>`;
+    });
+    categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
+    
+    listItem.appendChild(categorySelect);
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.marginTop = '5px';
+    
+    if (!siteData.isTracking) {
+      const rerunBtn = document.createElement('button');
+      rerunBtn.textContent = 'Rerun';
+      rerunBtn.onclick = () => rerunTracking(hostname);
+      buttonContainer.appendChild(rerunBtn);
+    }
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = 'Remove';
+    removeBtn.className = 'remove-btn';
+    removeBtn.onclick = () => removeSite(hostname);
+    removeBtn.style.marginLeft = '5px';
+    buttonContainer.appendChild(removeBtn);
+    
+    listItem.appendChild(buttonContainer);
+    
+    return listItem;
   }
 
   // Rerun tracking for a site
@@ -178,27 +204,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const hostnamesToDelete = Array.from(selectedCheckboxes).map(cb => cb.dataset.hostname);
     
     if (hostnamesToDelete.length > 0 && confirm(`Are you sure you want to delete ${hostnamesToDelete.length} selected sites?`)) {
-      chrome.storage.local.get(null, (data) => {
-        let hasChanges = false;
-        hostnamesToDelete.forEach(hostname => {
-          if (data[hostname]) {
-            delete data[hostname];
-            chrome.alarms.clear(hostname);
-            hasChanges = true;
-          }
-        });
-        
-        if (hasChanges) {
-          chrome.storage.local.set(data, () => {
-            console.log("Sites deleted:", hostnamesToDelete);
-            chrome.storage.local.get(null, (updatedData) => {
-              console.log("Updated storage contents:", updatedData);
-              updateSiteList();
-              updateTimeList();
+      console.log("Attempting to delete sites:", hostnamesToDelete);
+      
+      chrome.storage.local.remove(hostnamesToDelete, () => {
+        if (chrome.runtime.lastError) {
+          console.error("Error deleting sites:", chrome.runtime.lastError);
+        } else {
+          console.log("Sites should now be deleted.");
+          hostnamesToDelete.forEach(hostname => chrome.alarms.clear(hostname));
+          
+          // Verify deletion
+          chrome.storage.local.get(hostnamesToDelete, (result) => {
+            const remainingSites = Object.keys(result);
+            if (remainingSites.length > 0) {
+              console.warn("Some sites were not deleted:", remainingSites);
+            } else {
+              console.log("All selected sites were successfully deleted.");
+            }
+            
+            // Update the UI
+            updateSiteList();
+            updateTimeList();
+            
+            // Log final storage state
+            chrome.storage.local.get(null, (data) => {
+              console.log("Final storage contents:", data);
             });
           });
-        } else {
-          console.log("No changes were made to storage.");
         }
       });
     }
