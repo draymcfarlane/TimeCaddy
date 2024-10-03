@@ -37,11 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Display managed sites
   function updateSiteList() {
-    chrome.storage.sync.get('categories', (categoryData) => {
-      const categories = categoryData.categories || [];
-      chrome.storage.local.get(null, (data) => {
-        const siteList = document.getElementById('siteList');
-        siteList.innerHTML = ''; // Clear existing list
+    chrome.storage.local.get(null, (data) => {
+      console.log("Current storage state:", data);
+      const siteList = document.getElementById('siteList');
+      siteList.innerHTML = ''; // Clear existing list
+      chrome.storage.sync.get('categories', (categoryData) => {
+        const categories = categoryData.categories || [];
         for (const [hostname, siteData] of Object.entries(data)) {
           if (typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')) {
             const listItem = document.createElement('li');
@@ -188,8 +189,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (hasChanges) {
           chrome.storage.local.set(data, () => {
+            console.log("Sites deleted:", hostnamesToDelete);
             updateSiteList();
             updateTimeList();
+            debugStorage();
           });
         }
       });
@@ -299,6 +302,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   addCategoryBtn.addEventListener('click', addCategory);
+
+  // Debugging function
+  function debugStorage() {
+    chrome.storage.local.get(null, (data) => {
+      console.log("Current storage state:", data);
+    });
+  }
+
+  // Debug button
+  document.getElementById('debugBtn').addEventListener('click', debugStorage);
 
   // Initial population of the lists
   updateTimeList();
