@@ -1,5 +1,4 @@
 let overlayElement = null;
-let rerunButton = null;
 
 function createPromptDialog(hostname) {
   chrome.storage.sync.get('categories', (data) => {
@@ -105,7 +104,6 @@ function showTimeLimitPrompt(hostname, category, suggestedLimit) {
     }, (response) => {
       if (response.success) {
         alert(`Site ${hostname} added successfully!`);
-        removeRerunButton();
       }
     });
 
@@ -216,7 +214,6 @@ function showTimeLimitReachedNotification(hostname) {
           document.body.removeChild(overlayElement);
           overlayElement = null;
         }
-        createRerunButton(hostname);
       });
     });
 
@@ -259,41 +256,6 @@ function showCustomReminder(message) {
   }, 5000);
 }
 
-function createRerunButton(hostname) {
-  if (rerunButton) {
-    removeRerunButton();
-  }
-
-  rerunButton = document.createElement('button');
-  rerunButton.textContent = 'Rerun Time Tracking';
-  rerunButton.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    z-index: 2147483646;
-  `;
-
-  rerunButton.addEventListener('click', () => {
-    createPromptDialog(hostname);
-  });
-
-  document.body.appendChild(rerunButton);
-}
-
-function removeRerunButton() {
-  if (rerunButton && rerunButton.parentNode) {
-    rerunButton.parentNode.removeChild(rerunButton);
-    rerunButton = null;
-  }
-}
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "promptTrack") {
     createPromptDialog(request.hostname);
@@ -304,27 +266,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Check for time limit reached on page load and create rerun button if needed
+// Check for time limit reached on page load
 chrome.storage.local.get(null, (data) => {
   const hostname = window.location.hostname;
-  if (data[hostname]) {
-    if (data[hostname].limit && data[hostname].isTracking) {
-      const timeSpent = data[hostname].time || 0;
-      const limitMs = data[hostname].limit * 60 * 1000;
-      if (timeSpent >= limitMs) {
-        showTimeLimitReachedNotification(hostname);
-      }
-    } else if (!data[hostname].isTracking) {
-      createRerunButton(hostname);
+  if (data[hostname] && data[hostname].limit && data[hostname].isTracking) {
+    const timeSpent = data[hostname].time || 0;
+    const limitMs = data[hostname].limit * 60 * 1000;
+    if (timeSpent >= limitMs) {
+      showTimeLimitReachedNotification(hostname);
     }
   }
 });
 
-// Ensure overlay and rerun button are removed when navigating away from the page
+// Ensure overlay is removed when navigating away from the page
 window.addEventListener('beforeunload', () => {
   if (overlayElement) {
     document.body.removeChild(overlayElement);
     overlayElement = null;
   }
-  removeRerunButton();
 });
