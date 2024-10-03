@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
                const categorySelect = document.createElement('select');
                categorySelect.innerHTML = '<option value="">No Category</option>';
                categories.forEach(category => {
-                 categorySelect.innerHTML += `<option value="${category}" ${siteData.category === category ? 'selected' : ''}>${category}</option>`;
+                 categorySelect.innerHTML += `<option value="${category.name}" ${siteData.category === category.name ? 'selected' : ''}>${category.name}</option>`;
                });
                categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
                
@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
    
      // Category functionality
      const categoryName = document.getElementById('categoryName');
+     const categoryLimit = document.getElementById('categoryLimit');
      const addCategoryBtn = document.getElementById('addCategory');
      const categoryList = document.getElementById('categoryList');
    
@@ -156,11 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
          categoryList.innerHTML = '';
          categories.forEach((category, index) => {
            const li = document.createElement('li');
-           li.textContent = category;
-           const removeBtn = document.createElement('button');
-           removeBtn.textContent = 'Remove';
-           removeBtn.onclick = () => removeCategory(index);
-           li.appendChild(removeBtn);
+           li.textContent = `${category.name} (Suggested: ${category.suggestedLimit} min)`;
+           if (index >= presetCategories.length) {
+             const removeBtn = document.createElement('button');
+             removeBtn.textContent = 'Remove';
+             removeBtn.onclick = () => removeCategory(index);
+             li.appendChild(removeBtn);
+           }
            categoryList.appendChild(li);
          });
        });
@@ -168,14 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
    
      function addCategory() {
        const name = categoryName.value.trim();
-       if (name) {
+       const limit = parseInt(categoryLimit.value);
+       if (name && limit > 0) {
          chrome.storage.sync.get('categories', (data) => {
            const categories = data.categories || [];
-           if (!categories.includes(name)) {
-             categories.push(name);
+           if (!categories.some(cat => cat.name === name)) {
+             categories.push({ name, suggestedLimit: limit });
              chrome.storage.sync.set({ categories }, () => {
                updateCategoryList();
                categoryName.value = '';
+               categoryLimit.value = '';
              });
            }
          });
@@ -185,8 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
      function removeCategory(index) {
        chrome.storage.sync.get('categories', (data) => {
          const categories = data.categories || [];
-         categories.splice(index, 1);
-         chrome.storage.sync.set({ categories }, updateCategoryList);
+         if (index >= presetCategories.length) {
+           categories.splice(index, 1);
+           chrome.storage.sync.set({ categories }, updateCategoryList);
+         } else {
+           alert("Preset categories cannot be removed.");
+         }
        });
      }
    

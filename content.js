@@ -18,7 +18,7 @@ function createPromptDialog(hostname) {
       <p>Do you want to track time for ${hostname}?</p>
       <select id="categorySelect">
         <option value="">Select a category</option>
-        ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+        ${categories.map(cat => `<option value="${cat.name}" data-limit="${cat.suggestedLimit}">${cat.name} (Suggested: ${cat.suggestedLimit} min)</option>`).join('')}
         <option value="new">Create new category</option>
       </select>
       <button id="yesBtn">Yes</button>
@@ -29,15 +29,17 @@ function createPromptDialog(hostname) {
     document.getElementById('yesBtn').addEventListener('click', () => {
       const categorySelect = document.getElementById('categorySelect');
       let category = categorySelect.value;
+      let suggestedLimit = categorySelect.selectedOptions[0].dataset.limit;
       if (category === 'new') {
         category = prompt("Enter new category name:");
-        if (category) {
-          categories.push(category);
+        suggestedLimit = prompt("Enter suggested time limit (in minutes):");
+        if (category && suggestedLimit) {
+          categories.push({ name: category, suggestedLimit: parseInt(suggestedLimit) });
           chrome.storage.sync.set({ categories });
         }
       }
       document.body.removeChild(dialog);
-      showTimeLimitPrompt(hostname, category);
+      showTimeLimitPrompt(hostname, category, suggestedLimit);
     });
 
     document.getElementById('noBtn').addEventListener('click', () => {
@@ -47,7 +49,7 @@ function createPromptDialog(hostname) {
   });
 }
 
-function showTimeLimitPrompt(hostname, category) {
+function showTimeLimitPrompt(hostname, category, suggestedLimit) {
   const dialog = document.createElement('div');
   dialog.style.cssText = `
     position: fixed;
@@ -61,6 +63,7 @@ function showTimeLimitPrompt(hostname, category) {
   `;
   dialog.innerHTML = `
     <p>Set time limit for ${hostname}:</p>
+    <p>Suggested limit: ${suggestedLimit} minutes</p>
     <select id="hourSelect"></select>
     <select id="minuteSelect"></select>
     <button id="setLimit">Set Limit</button>
@@ -83,6 +86,10 @@ function showTimeLimitPrompt(hostname, category) {
     option.textContent = i + ' minute' + (i !== 1 ? 's' : '');
     minuteSelect.appendChild(option);
   }
+
+  // Set default values based on suggested limit
+  hourSelect.value = Math.floor(suggestedLimit / 60);
+  minuteSelect.value = suggestedLimit % 60;
 
   document.getElementById('setLimit').addEventListener('click', () => {
     const hours = parseInt(hourSelect.value);
