@@ -10,7 +10,7 @@ To do:
 - [ ] Add a way for the extension to remember bookmarked tabs on next session.
 - [ ] Upon opening the extension, have the Live tracker tab open, rather than having to click to open.
 
-Sites deleted: ['github.com']0: "github.com"length: 1[[Prototype]]: Array(0)
-popup.js:195 Updated storage contents: {github.com: {…}}github.com: {category: 'Social Media', isTracking: true, limit: 30, time: 34111}[[Prototype]]: Object
-popup.js:43 Updating site list with data: {github.com: {…}}github.com: {category: 'Social Media', isTracking: true, limit: 30, time: 34111}[[Prototype]]: Object
+Sites deleted: ['www.youtube.com']0: "www.youtube.com"length: 1[[Prototype]]: Array(0)
+popup.js:195 Updated storage contents: {www.youtube.com: {…}}www.youtube.com: {category: 'Social Media', isTracking: true, limit: 30, time: 94129}[[Prototype]]: Object
+popup.js:43 Updating site list with data: {www.youtube.com: {…}}www.youtube.com: {category: 'Social Media', isTracking: true, limit: 30, time: 94129}[[Prototype]]: Object
 popup.js:91 Site list updated
