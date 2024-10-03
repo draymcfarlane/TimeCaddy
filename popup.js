@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         
         if (sites.length === 0) {
-          siteList.innerHTML = '<li>No sites are currently being tracked.</li>';
+          siteList.innerHTML = '<div>No sites are currently being tracked.</div>';
         } else {
           sites.forEach(([hostname, siteData]) => {
             const listItem = createSiteListItem(hostname, siteData, categories);
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function createSiteListItem(hostname, siteData, categories) {
-    const listItem = document.createElement('li');
+    const listItem = document.createElement('div');
     
     if (isEditMode) {
       const checkbox = document.createElement('input');
@@ -97,25 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     listItem.appendChild(categorySelect);
     
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.marginTop = '5px';
-    
-    if (!siteData.isTracking) {
-      const rerunBtn = document.createElement('button');
-      rerunBtn.textContent = 'Rerun';
-      rerunBtn.onclick = () => rerunTracking(hostname);
-      buttonContainer.appendChild(rerunBtn);
-    }
-    
-    const removeBtn = document.createElement('button');
-    removeBtn.textContent = 'Remove';
-    removeBtn.className = 'remove-btn';
-    removeBtn.onclick = () => removeSite(hostname);
-    removeBtn.style.marginLeft = '5px';
-    buttonContainer.appendChild(removeBtn);
-    
-    listItem.appendChild(buttonContainer);
-    
     return listItem;
   }
 
@@ -129,15 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSiteList();
         updateTimeList();
       });
-    });
-  }
-
-  // Remove a single site from tracking
-  function removeSite(hostname) {
-    chrome.storage.local.remove(hostname, () => {
-      chrome.alarms.clear(hostname);
-      updateSiteList();
-      updateTimeList();
     });
   }
 
@@ -340,30 +312,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   addCategoryBtn.addEventListener('click', addCategory);
 
-  // Helper function to log storage contents (for debugging)
-  function logStorageContents() {
-    chrome.storage.local.get(null, (data) => {
-      console.log("Current storage contents:", data);
-    });
-  }
-
-  // Add a debug button to check storage contents
-  function addDebugButton() {
-    const debugBtn = document.createElement('button');
-    debugBtn.textContent = 'Debug';
-    debugBtn.id = 'debugBtn';
-    debugBtn.addEventListener('click', logStorageContents);
-    document.getElementById('manage').appendChild(debugBtn);
-  }
-
   // Initial population of the lists
   updateTimeList();
   updateSiteList();
   updateReminderList();
   updateCategoryList();
-
-  // Add debug button
-  addDebugButton();
 
   // Listen for live updates
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -371,7 +324,4 @@ document.addEventListener('DOMContentLoaded', () => {
       updateTimeList();
     }
   });
-
-  // Log initial storage contents
-  logStorageContents();
 });
