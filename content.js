@@ -256,6 +256,60 @@ function showCustomReminder(message) {
   }, 5000);
 }
 
+function showScheduledTrackingPrompt(action) {
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border: 1px solid #ccc;
+    padding: 20px;
+    z-index: 2147483647;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  `;
+  
+  if (action === 'start') {
+    dialog.innerHTML = `
+      <p>Scheduled tracking time has started. Do you want to begin tracking?</p>
+      <button id="startTrackingBtn">Start Tracking</button>
+      <button id="extendTimeBtn">Extend Time</button>
+    `;
+  } else {
+    dialog.innerHTML = `
+      <p>Scheduled tracking time has ended. Do you want to stop tracking?</p>
+      <button id="stopTrackingBtn">Stop Tracking</button>
+      <button id="extendTimeBtn">Extend Time</button>
+    `;
+  }
+
+  document.body.appendChild(dialog);
+
+  if (action === 'start') {
+    document.getElementById('startTrackingBtn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({action: "startTracking", hostname: window.location.hostname});
+      document.body.removeChild(dialog);
+    });
+  } else {
+    document.getElementById('stopTrackingBtn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({action: "stopTracking", hostname: window.location.hostname});
+      document.body.removeChild(dialog);
+    });
+  }
+
+  document.getElementById('extendTimeBtn').addEventListener('click', () => {
+    const extensionTime = prompt("Enter extension time in minutes:", "30");
+    if (extensionTime !== null) {
+      chrome.runtime.sendMessage({
+        action: "extendScheduledTime",
+        hostname: window.location.hostname,
+        extensionTime: parseInt(extensionTime)
+      });
+      document.body.removeChild(dialog);
+    }
+  });
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "promptTrack") {
     createPromptDialog(request.hostname);
@@ -263,6 +317,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     showTimeLimitReachedNotification(request.hostname);
   } else if (request.action === "showCustomReminder") {
     showCustomReminder(request.message);
+  } else if (request.action === "startScheduledTracking") {
+    showScheduledTrackingPrompt('start');
+  } else if (request.action === "stopScheduledTracking") {
+    showScheduledTrackingPrompt('stop');
   }
 });
 

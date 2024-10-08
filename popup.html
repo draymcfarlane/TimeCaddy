@@ -9,16 +9,16 @@
     }
     .tabs {
       display: flex;
+      justify-content: space-between;
       margin-bottom: 10px;
     }
     .tab-btn {
-      flex: 1;
-      padding: 5px;
       background: #f0f0f0;
       border: none;
+      padding: 5px 10px;
       cursor: pointer;
     }
-    .tab-btn.active {
+    .tab-btn:hover {
       background: #e0e0e0;
     }
     .tab-content {
@@ -27,24 +27,21 @@
     .tab-content.active {
       display: block;
     }
-    .reminder-input, .category-input {
-      width: 100%;
-      margin-bottom: 10px;
+    .time-settings {
+      margin-top: 20px;
     }
-    ul {
-      padding-left: 20px;
-    }
-    button {
-      margin-right: 5px;
+    .time-input {
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
   <div class="tabs">
-    <button class="tab-btn" data-tab="track">Track Sites</button>
-    <button class="tab-btn" data-tab="manage">Manage Sites</button>
+    <button class="tab-btn" data-tab="track">Track</button>
+    <button class="tab-btn" data-tab="manage">Manage</button>
     <button class="tab-btn" data-tab="reminders">Reminders</button>
     <button class="tab-btn" data-tab="categories">Categories</button>
+    <button class="tab-btn" data-tab="schedule">Schedule</button>
   </div>
 
   <div id="track" class="tab-content">
@@ -54,23 +51,39 @@
 
   <div id="manage" class="tab-content">
     <h2>Manage Sites</h2>
-    <ul id="siteList"></ul>
+    <div id="siteList"></div>
   </div>
 
   <div id="reminders" class="tab-content">
     <h2>Custom Reminders</h2>
-    <input type="text" id="reminderText" class="reminder-input" placeholder="Enter your reminder message">
-    <input type="number" id="reminderPercentage" class="reminder-input" placeholder="Percentage of time limit (e.g. 75)">
+    <input type="text" id="reminderText" placeholder="Reminder text">
+    <input type="number" id="reminderPercentage" placeholder="Percentage">
     <button id="addReminder">Add Reminder</button>
     <ul id="reminderList"></ul>
   </div>
 
   <div id="categories" class="tab-content">
     <h2>Website Categories</h2>
-    <input type="text" id="categoryName" class="category-input" placeholder="Enter category name">
-    <input type="number" id="categoryLimit" class="category-input" placeholder="Category time limit (minutes)">
+    <input type="text" id="categoryName" placeholder="Category name">
+    <input type="number" id="categoryLimit" placeholder="Suggested limit (minutes)">
     <button id="addCategory">Add Category</button>
     <ul id="categoryList"></ul>
+  </div>
+
+  <div id="schedule" class="tab-content">
+    <h2>Schedule Tracking</h2>
+    <div class="time-settings">
+      <div class="time-input">
+        <label for="startTime">Start Time:</label>
+        <input type="time" id="startTime">
+      </div>
+      <div class="time-input">
+        <label for="stopTime">Stop Time:</label>
+        <input type="time" id="stopTime">
+      </div>
+      <button id="saveSchedule">Save Schedule</button>
+    </div>
+    <div id="currentSchedule"></div>
   </div>
 
   <script src="popup.js"></script>

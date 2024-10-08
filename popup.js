@@ -1,15 +1,3 @@
-// Preset categories
-const presetCategories = [
-  { name: "Social Media", suggestedLimit: 30 },
-  { name: "Video Streaming", suggestedLimit: 60 },
-  { name: "Gaming", suggestedLimit: 60 },
-  { name: "News", suggestedLimit: 30 },
-  { name: "Productivity", suggestedLimit: 120 },
-  { name: "Education", suggestedLimit: 90 },
-  { name: "Shopping", suggestedLimit: 30 },
-  { name: "Other", suggestedLimit: 60 }
-];
-
 document.addEventListener('DOMContentLoaded', () => {
   let isEditMode = false;
 
@@ -25,15 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateTimeList() {
     chrome.storage.local.get(null, (data) => {
       const timeList = document.getElementById('timeList');
-      timeList.innerHTML = ''; // Clear existing list
+      timeList.innerHTML = '';
       for (const [hostname, siteData] of Object.entries(data)) {
         if (siteData.isTracking) {
           const listItem = document.createElement('li');
-          const timeSpent = siteData.time / 1000; // Convert milliseconds to seconds
+          const timeSpent = siteData.time / 1000;
           const hours = Math.floor(timeSpent / 3600);
           const minutes = Math.floor((timeSpent % 3600) / 60);
           const seconds = Math.floor(timeSpent % 60);
-          const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
+          const websiteName = hostname.replace(/^www\./, '').split('.')[0];
           listItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
           if (siteData.limit) {
             listItem.textContent += ` (Limit: ${siteData.limit} minutes)`;
@@ -52,9 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.sync.get('categories', (categoryData) => {
       const categories = categoryData.categories || [];
       chrome.storage.local.get(null, (data) => {
-        console.log("Updating site list with data:", data);
         const siteList = document.getElementById('siteList');
-        siteList.innerHTML = ''; // Clear existing list
+        siteList.innerHTML = '';
         
         const sites = Object.entries(data).filter(([hostname, siteData]) => 
           typeof siteData === 'object' && siteData.hasOwnProperty('isTracking')
@@ -68,8 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
             siteList.appendChild(listItem);
           });
         }
-        
-        console.log("Site list updated");
       });
     });
   }
@@ -85,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
       listItem.appendChild(checkbox);
     }
     
-    const websiteName = hostname.replace(/^www\./, '').split('.')[0]; // Extract website name
+    const websiteName = hostname.replace(/^www\./, '').split('.')[0];
     listItem.innerHTML += `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
     
     const categorySelect = document.createElement('select');
@@ -98,19 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
     listItem.appendChild(categorySelect);
     
     return listItem;
-  }
-
-  // Rerun tracking for a site
-  function rerunTracking(hostname) {
-    chrome.storage.local.get(hostname, (data) => {
-      const siteData = data[hostname];
-      siteData.isTracking = true;
-      siteData.time = 0; // Reset time
-      chrome.storage.local.set({ [hostname]: siteData }, () => {
-        updateSiteList();
-        updateTimeList();
-      });
-    });
   }
 
   // Update site category
@@ -176,34 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const hostnamesToDelete = Array.from(selectedCheckboxes).map(cb => cb.dataset.hostname);
     
     if (hostnamesToDelete.length > 0 && confirm(`Are you sure you want to delete ${hostnamesToDelete.length} selected sites?`)) {
-      console.log("Attempting to delete sites:", hostnamesToDelete);
-      
       chrome.storage.local.remove(hostnamesToDelete, () => {
-        if (chrome.runtime.lastError) {
-          console.error("Error deleting sites:", chrome.runtime.lastError);
-        } else {
-          console.log("Sites should now be deleted.");
-          hostnamesToDelete.forEach(hostname => chrome.alarms.clear(hostname));
-          
-          // Verify deletion
-          chrome.storage.local.get(hostnamesToDelete, (result) => {
-            const remainingSites = Object.keys(result);
-            if (remainingSites.length > 0) {
-              console.warn("Some sites were not deleted:", remainingSites);
-            } else {
-              console.log("All selected sites were successfully deleted.");
-            }
-            
-            // Update the UI
-            updateSiteList();
-            updateTimeList();
-            
-            // Log final storage state
-            chrome.storage.local.get(null, (data) => {
-              console.log("Final storage contents:", data);
-            });
-          });
-        }
+        hostnamesToDelete.forEach(hostname => chrome.alarms.clear(hostname));
+        updateSiteList();
+        updateTimeList();
       });
     }
   }
@@ -311,6 +259,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   addCategoryBtn.addEventListener('click', addCategory);
+
+  // Schedule functionality
+  const startTimeInput = document.getElementById('startTime');
+  const stopTimeInput = document.getElementById('stopTime');
+  const saveScheduleBtn = document.getElementById('saveSchedule');
+  const currentScheduleDiv = document.getElementById('currentSchedule');
+
+  // Load and display current schedule
+  chrome.storage.sync.get(['startTime', 'stopTime'], (result) => {
+    if (result.startTime && result.stopTime) {
+      startTimeInput.value = result.startTime;
+      stopTimeInput.value = result.stopTime;
+      currentScheduleDiv.textContent = `Current schedule: ${result.startTime} to ${result.stopTime}`;
+    }
+  });
+
+  // Save schedule
+  saveScheduleBtn.addEventListener('click', () => {
+    const startTime = startTimeInput.value;
+    const stopTime = stopTimeInput.value;
+
+    if (startTime && stopTime) {
+      chrome.storage.sync.set({ startTime, stopTime }, () => {
+        currentScheduleDiv.textContent = `Current schedule: ${startTime} to ${stopTime}`;
+        alert('Schedule saved successfully!');
+        
+        // Notify background script to update alarm
+        chrome.runtime.sendMessage({ action: "updateSchedule", startTime, stopTime });
+      });
+    } else {
+      alert('Please set both start and stop times.');
+    }
+  });
 
   // Initial population of the lists
   updateTimeList();
