@@ -71,7 +71,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-    listItem.innerHTML += `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    listItem.innerHTML += `${websiteName} (${siteData.limit ? 'Limit: ' + siteData.limit + ' minutes' : 'Scheduled'}) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    
+    if (siteData.reminder) {
+      listItem.innerHTML += ` - Reminder: ${siteData.reminder.text} at ${siteData.reminder.percentage}%`;
+    }
+    
+    if (siteData.schedule) {
+      listItem.innerHTML += ` - Schedule: ${siteData.schedule.startTime} to ${siteData.schedule.stopTime}`;
+    }
     
     const categorySelect = document.createElement('select');
     categorySelect.innerHTML = '<option value="">No Category</option>';
@@ -82,7 +90,95 @@ document.addEventListener('DOMContentLoaded', () => {
     
     listItem.appendChild(categorySelect);
     
+    const editButton = document.createElement('button');
+    editButton.textContent = 'Edit';
+    editButton.onclick = () => editSiteSettings(hostname, siteData);
+    listItem.appendChild(editButton);
+    
     return listItem;
+  }
+
+  function editSiteSettings(hostname, siteData) {
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border: 1px solid #ccc;
+      z-index: 1000;
+    `;
+    dialog.innerHTML = `
+      <h3>Edit Settings for ${hostname}</h3>
+      <label>
+        <input type="radio" name="timeType" value="limit" ${!siteData.schedule ? 'checked' : ''}>
+        Set Time Limit
+      </label>
+      <label>
+        <input type="radio" name="timeType" value="schedule" ${siteData.schedule ? 'checked' : ''}>
+        Set Schedule
+      </label>
+      <div id="limitSettings" ${siteData.schedule ? 'style="display:none;"' : ''}>
+        <input type="number" id="timeLimit" value="${siteData.limit || ''}" placeholder="Time limit in minutes">
+      </div>
+      <div id="scheduleSettings" ${!siteData.schedule ? 'style="display:none;"' : ''}>
+        <input type="time" id="startTime" value="${siteData.schedule ? siteData.schedule.startTime : ''}">
+        <input type="time" id="stopTime" value="${siteData.schedule ? siteData.schedule.stopTime : ''}">
+      </div>
+      <div>
+        <input type="text" id="reminderText" value="${siteData.reminder ? siteData.reminder.text : ''}" placeholder="Reminder text">
+        <input type="number" id="reminderPercentage" value="${siteData.reminder ? siteData.reminder.percentage : ''}" placeholder="Reminder percentage">
+      </div>
+      <button id="saveSettings">Save</button>
+      <button id="cancelEdit">Cancel</button>
+    `;
+    document.body.appendChild(dialog);
+
+    const limitSettings = document.getElementById('limitSettings');
+    const scheduleSettings = document.getElementById('scheduleSettings');
+    document.querySelectorAll('input[name="timeType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        if (e.target.value === 'limit') {
+          limitSettings.style.display = 'block';
+          scheduleSettings.style.display = 'none';
+        } else {
+          limitSettings.style.display = 'none';
+          scheduleSettings.style.display = 'block';
+        }
+      });
+    });
+
+    document.getElementById('saveSettings').addEventListener('click', () => {
+      const newData = { ...siteData };
+      const timeType = document.querySelector('input[name="timeType"]:checked').value;
+      if (timeType === 'limit') {
+        newData.limit = parseInt(document.getElementById('timeLimit').value);
+        delete newData.schedule;
+      } else {
+        newData.schedule = {
+          startTime: document.getElementById('startTime').value,
+          stopTime: document.getElementById('stopTime').value
+        };
+        delete newData.limit;
+      }
+      const reminderText = document.getElementById('reminderText').value;
+      const reminderPercentage = parseInt(document.getElementById('reminderPercentage').value);
+      if (reminderText && reminderPercentage) {
+        newData.reminder = { text: reminderText, percentage: reminderPercentage };
+      } else {
+        delete newData.reminder;
+      }
+      chrome.storage.local.set({ [hostname]: newData }, () => {
+        document.body.removeChild(dialog);
+        updateSiteList();
+      });
+    });
+
+    document.getElementById('cancelEdit').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+    });
   }
 
   // Update site category
@@ -156,54 +252,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Reminder functionality
-  const reminderText = document.getElementById('reminderText');
-  const reminderPercentage = document.getElementById('reminderPercentage');
-  const addReminderBtn = document.getElementById('addReminder');
-  const reminderList = document.getElementById('reminderList');
-
-  function updateReminderList() {
-    chrome.storage.sync.get('reminders', (data) => {
-      const reminders = data.reminders || [];
-      reminderList.innerHTML = '';
-      reminders.forEach((reminder, index) => {
-        const li = document.createElement('li');
-        li.textContent = `${reminder.text} (at ${reminder.percentage}%)`;
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = 'Remove';
-        removeBtn.onclick = () => removeReminder(index);
-        li.appendChild(removeBtn);
-        reminderList.appendChild(li);
-      });
-    });
-  }
-
-  function addReminder() {
-    const text = reminderText.value.trim();
-    const percentage = parseInt(reminderPercentage.value);
-    if (text && percentage > 0 && percentage < 100) {
-      chrome.storage.sync.get('reminders', (data) => {
-        const reminders = data.reminders || [];
-        reminders.push({ text, percentage });
-        chrome.storage.sync.set({ reminders }, () => {
-          updateReminderList();
-          reminderText.value = '';
-          reminderPercentage.value = '';
-        });
-      });
-    }
-  }
-
-  function removeReminder(index) {
-    chrome.storage.sync.get('reminders', (data) => {
-      const reminders = data.reminders || [];
-      reminders.splice(index, 1);
-      chrome.storage.sync.set({ reminders }, updateReminderList);
-    });
-  }
-
-  addReminderBtn.addEventListener('click', addReminder);
-
   // Category functionality
   const categoryName = document.getElementById('categoryName');
   const categoryLimit = document.getElementById('categoryLimit');
@@ -260,43 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   addCategoryBtn.addEventListener('click', addCategory);
 
-  // Schedule functionality
-  const startTimeInput = document.getElementById('startTime');
-  const stopTimeInput = document.getElementById('stopTime');
-  const saveScheduleBtn = document.getElementById('saveSchedule');
-  const currentScheduleDiv = document.getElementById('currentSchedule');
-
-  // Load and display current schedule
-  chrome.storage.sync.get(['startTime', 'stopTime'], (result) => {
-    if (result.startTime && result.stopTime) {
-      startTimeInput.value = result.startTime;
-      stopTimeInput.value = result.stopTime;
-      currentScheduleDiv.textContent = `Current schedule: ${result.startTime} to ${result.stopTime}`;
-    }
-  });
-
-  // Save schedule
-  saveScheduleBtn.addEventListener('click', () => {
-    const startTime = startTimeInput.value;
-    const stopTime = stopTimeInput.value;
-
-    if (startTime && stopTime) {
-      chrome.storage.sync.set({ startTime, stopTime }, () => {
-        currentScheduleDiv.textContent = `Current schedule: ${startTime} to ${stopTime}`;
-        alert('Schedule saved successfully!');
-        
-        // Notify background script to update alarm
-        chrome.runtime.sendMessage({ action: "updateSchedule", startTime, stopTime });
-      });
-    } else {
-      alert('Please set both start and stop times.');
-    }
-  });
-
   // Initial population of the lists
   updateTimeList();
   updateSiteList();
-  updateReminderList();
   updateCategoryList();
 
   // Listen for live updates

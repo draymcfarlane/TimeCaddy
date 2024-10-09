@@ -27,21 +27,14 @@
     .tab-content.active {
       display: block;
     }
-    .time-settings {
-      margin-top: 20px;
-    }
-    .time-input {
-      margin: 5px 0;
-    }
   </style>
 </head>
 <body>
   <div class="tabs">
     <button class="tab-btn" data-tab="track">Track</button>
     <button class="tab-btn" data-tab="manage">Manage</button>
-    <button class="tab-btn" data-tab="reminders">Reminders</button>
     <button class="tab-btn" data-tab="categories">Categories</button>
-    <button class="tab-btn" data-tab="schedule">Schedule</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
   </div>
 
   <div id="track" class="tab-content">
@@ -54,14 +47,6 @@
     <div id="siteList"></div>
   </div>
 
-  <div id="reminders" class="tab-content">
-    <h2>Custom Reminders</h2>
-    <input type="text" id="reminderText" placeholder="Reminder text">
-    <input type="number" id="reminderPercentage" placeholder="Percentage">
-    <button id="addReminder">Add Reminder</button>
-    <ul id="reminderList"></ul>
-  </div>
-
   <div id="categories" class="tab-content">
     <h2>Website Categories</h2>
     <input type="text" id="categoryName" placeholder="Category name">
@@ -70,20 +55,9 @@
     <ul id="categoryList"></ul>
   </div>
 
-  <div id="schedule" class="tab-content">
-    <h2>Schedule Tracking</h2>
-    <div class="time-settings">
-      <div class="time-input">
-        <label for="startTime">Start Time:</label>
-        <input type="time" id="startTime">
-      </div>
-      <div class="time-input">
-        <label for="stopTime">Stop Time:</label>
-        <input type="time" id="stopTime">
-      </div>
-      <button id="saveSchedule">Save Schedule</button>
-    </div>
-    <div id="currentSchedule"></div>
+  <div id="settings" class="tab-content">
+    <h2>Settings</h2>
+    <!-- Add any global settings here if needed -->
   </div>
 
   <script src="popup.js"></script>

@@ -39,7 +39,7 @@ function createPromptDialog(hostname) {
         }
       }
       document.body.removeChild(dialog);
-      showTimeLimitPrompt(hostname, category, suggestedLimit);
+      showTimeSettingsPrompt(hostname, category, suggestedLimit);
     });
 
     document.getElementById('noBtn').addEventListener('click', () => {
@@ -49,7 +49,7 @@ function createPromptDialog(hostname) {
   });
 }
 
-function showTimeLimitPrompt(hostname, category, suggestedLimit) {
+function showTimeSettingsPrompt(hostname, category, suggestedLimit) {
   const dialog = document.createElement('div');
   dialog.style.cssText = `
     position: fixed;
@@ -62,176 +62,140 @@ function showTimeLimitPrompt(hostname, category, suggestedLimit) {
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
   `;
   dialog.innerHTML = `
-    <p>Set time limit for ${hostname}:</p>
-    <p>Suggested limit: ${suggestedLimit} minutes</p>
-    <select id="hourSelect"></select>
-    <select id="minuteSelect"></select>
-    <button id="setLimit">Set Limit</button>
+    <h3>Time Settings for ${hostname}</h3>
+    <label>
+      <input type="radio" name="timeType" value="limit" checked>
+      Set Time Limit
+    </label>
+    <label>
+      <input type="radio" name="timeType" value="schedule">
+      Set Schedule
+    </label>
+    <div id="limitSettings">
+      <input type="number" id="timeLimit" value="${suggestedLimit}" placeholder="Time limit in minutes">
+    </div>
+    <div id="scheduleSettings" style="display:none;">
+      <input type="time" id="startTime">
+      <input type="time" id="stopTime">
+    </div>
+    <div>
+      <input type="text" id="reminderText" placeholder="Reminder text">
+      <input type="number" id="reminderPercentage" placeholder="Reminder percentage">
+    </div>
+    <button id="saveSettings">Save</button>
   `;
   document.body.appendChild(dialog);
 
-  const hourSelect = document.getElementById('hourSelect');
-  const minuteSelect = document.getElementById('minuteSelect');
+  const limitSettings = document.getElementById('limitSettings');
+  const scheduleSettings = document.getElementById('scheduleSettings');
+  document.querySelectorAll('input[name="timeType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'limit') {
+        limitSettings.style.display = 'block';
+        scheduleSettings.style.display = 'none';
+      } else {
+        limitSettings.style.display = 'none';
+        scheduleSettings.style.display = 'block';
+      }
+    });
+  });
 
-  for (let i = 0; i <= 23; i++) {
-    const option = document.createElement('option');
-    option.value = i;
-    option.textContent = i + ' hour' + (i !== 1 ? 's' : '');
-    hourSelect.appendChild(option);
-  }
-
-  for (let i = 0; i <= 59; i++) {
-    const option = document.createElement('option');
-    option.value = i;
-    option.textContent = i + ' minute' + (i !== 1 ? 's' : '');
-    minuteSelect.appendChild(option);
-  }
-
-  // Set default values based on suggested limit
-  hourSelect.value = Math.floor(suggestedLimit / 60);
-  minuteSelect.value = suggestedLimit % 60;
-
-  document.getElementById('setLimit').addEventListener('click', () => {
-    const hours = parseInt(hourSelect.value);
-    const minutes = parseInt(minuteSelect.value);
-    const limit = hours * 60 + minutes;
-
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    const timeType = document.querySelector('input[name="timeType"]:checked').value;
+    let settings = { category };
+    if (timeType === 'limit') {
+      settings.limit = parseInt(document.getElementById('timeLimit').value);
+    } else {
+      settings.schedule = {
+        startTime: document.getElementById('startTime').value,
+        stopTime: document.getElementById('stopTime').value
+      };
+    }
+    const reminderText = document.getElementById('reminderText').value;
+    const reminderPercentage = parseInt(document.getElementById('reminderPercentage').value);
+    if (reminderText && reminderPercentage) {
+      settings.reminder = { text: reminderText, percentage: reminderPercentage };
+    }
     chrome.runtime.sendMessage({
       action: "addSite",
       hostname: hostname,
-      limit: limit,
-      category: category
+      ...settings
     }, (response) => {
       if (response.success) {
         alert(`Site ${hostname} added successfully!`);
       }
     });
-
     document.body.removeChild(dialog);
   });
 }
 
 function showTimeLimitReachedNotification(hostname) {
-  chrome.storage.local.get(['dismissedNotifications', hostname], (result) => {
-    const dismissedNotifications = result.dismissedNotifications || {};
-    const currentTime = Date.now();
-    const siteData = result[hostname] || {};
-    
-    if (dismissedNotifications[hostname] && dismissedNotifications[hostname] > currentTime) {
-      // Notification is still dismissed, don't show it
-      return;
-    }
+  if (overlayElement) {
+    document.body.removeChild(overlayElement);
+  }
 
-    if (overlayElement) {
-      // If an overlay already exists, remove it
-      document.body.removeChild(overlayElement);
-    }
+  overlayElement = document.createElement('div');
+  overlayElement.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2147483647;
+  `;
 
-    overlayElement = document.createElement('div');
-    overlayElement.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 2147483647;
-    `;
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    background: #ff4d4d;
+    color: white;
+    padding: 20px;
+    border-radius: 5px;
+    font-size: 24px;
+    text-align: center;
+  `;
 
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      background: #ff4d4d;
-      color: white;
-      padding: 20px;
-      border-radius: 5px;
-      font-size: 24px;
-      text-align: center;
-    `;
+  notification.innerHTML = `
+    <p>Time limit reached for ${hostname}!</p>
+    <button id="extendBtn">Extend Time</button>
+    <button id="stopBtn">Stop Tracking</button>
+    <button id="dismissBtn">Dismiss</button>
+  `;
 
-    notification.innerHTML = `
-      <p>Time limit reached for ${hostname}!</p>
-      <button id="extendBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Extend Time</button>
-      <button id="stopBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Stop Tracking</button>
-      <button id="dismissBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Dismiss for 5 minutes</button>
-    `;
+  overlayElement.appendChild(notification);
+  document.body.appendChild(overlayElement);
 
-    overlayElement.appendChild(notification);
-    document.body.appendChild(overlayElement);
-
-    document.getElementById('extendBtn').addEventListener('click', () => {
-      const additionalTime = prompt("Enter additional time in minutes:", "30");
-      if (additionalTime !== null) {
-        const newLimit = siteData.limit + parseInt(additionalTime);
-        chrome.runtime.sendMessage({
-          action: "updateSiteLimit",
-          hostname: hostname,
-          newLimit: newLimit
-        }, () => {
-          if (overlayElement) {
-            document.body.removeChild(overlayElement);
-            overlayElement = null;
-          }
-        });
-      }
-    });
-
-    document.getElementById('stopBtn').addEventListener('click', () => {
+  document.getElementById('extendBtn').addEventListener('click', () => {
+    const additionalTime = prompt("Enter additional time in minutes:", "30");
+    if (additionalTime !== null) {
       chrome.runtime.sendMessage({
-        action: "stopTracking",
-        hostname: hostname
+        action: "updateSiteSettings",
+        hostname: hostname,
+        settings: { limit: parseInt(additionalTime) }
       }, () => {
-        if (overlayElement) {
-          document.body.removeChild(overlayElement);
-          overlayElement = null;
-        }
-      });
-    });
-
-    document.getElementById('dismissBtn').addEventListener('click', () => {
-      if (overlayElement) {
         document.body.removeChild(overlayElement);
         overlayElement = null;
-      }
-      
-      // Set dismissal time for 5 minutes from now
-      dismissedNotifications[hostname] = currentTime + 5 * 60 * 1000;
-      chrome.storage.local.set({ dismissedNotifications: dismissedNotifications }, () => {
-        // Schedule the notification to reappear after 5 minutes
-        setTimeout(() => {
-          showTimeLimitReachedNotification(hostname);
-        }, 5 * 60 * 1000);
       });
+    }
+  });
+
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      action: "updateSiteSettings",
+      hostname: hostname,
+      settings: { isTracking: false }
+    }, () => {
+      document.body.removeChild(overlayElement);
+      overlayElement = null;
     });
+  });
+
+  document.getElementById('dismissBtn').addEventListener('click', () => {
+    document.body.removeChild(overlayElement);
+    overlayElement = null;
   });
 }
 
@@ -256,7 +220,7 @@ function showCustomReminder(message) {
   }, 5000);
 }
 
-function showScheduledTrackingPrompt(action) {
+function showScheduledTrackingPrompt(action, hostname) {
   const dialog = document.createElement('div');
   dialog.style.cssText = `
     position: fixed;
@@ -269,44 +233,24 @@ function showScheduledTrackingPrompt(action) {
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
   `;
   
-  if (action === 'start') {
-    dialog.innerHTML = `
-      <p>Scheduled tracking time has started. Do you want to begin tracking?</p>
-      <button id="startTrackingBtn">Start Tracking</button>
-      <button id="extendTimeBtn">Extend Time</button>
-    `;
-  } else {
-    dialog.innerHTML = `
-      <p>Scheduled tracking time has ended. Do you want to stop tracking?</p>
-      <button id="stopTrackingBtn">Stop Tracking</button>
-      <button id="extendTimeBtn">Extend Time</button>
-    `;
-  }
+  dialog.innerHTML = `
+    <p>${action === 'start' ? 'Start' : 'Stop'} scheduled tracking for ${hostname}?</p>
+    <button id="yesBtn">Yes</button>
+    <button id="noBtn">No</button>
+  `;
 
   document.body.appendChild(dialog);
 
-  if (action === 'start') {
-    document.getElementById('startTrackingBtn').addEventListener('click', () => {
-      chrome.runtime.sendMessage({action: "startTracking", hostname: window.location.hostname});
-      document.body.removeChild(dialog);
+  document.getElementById('yesBtn').addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      action: action === 'start' ? 'startTracking' : 'stopTracking',
+      hostname: hostname
     });
-  } else {
-    document.getElementById('stopTrackingBtn').addEventListener('click', () => {
-      chrome.runtime.sendMessage({action: "stopTracking", hostname: window.location.hostname});
-      document.body.removeChild(dialog);
-    });
-  }
+    document.body.removeChild(dialog);
+  });
 
-  document.getElementById('extendTimeBtn').addEventListener('click', () => {
-    const extensionTime = prompt("Enter extension time in minutes:", "30");
-    if (extensionTime !== null) {
-      chrome.runtime.sendMessage({
-        action: "extendScheduledTime",
-        hostname: window.location.hostname,
-        extensionTime: parseInt(extensionTime)
-      });
-      document.body.removeChild(dialog);
-    }
+  document.getElementById('noBtn').addEventListener('click', () => {
+    document.body.removeChild(dialog);
   });
 }
 
@@ -318,21 +262,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "showCustomReminder") {
     showCustomReminder(request.message);
   } else if (request.action === "startScheduledTracking") {
-    showScheduledTrackingPrompt('start');
+    showScheduledTrackingPrompt('start', request.hostname);
   } else if (request.action === "stopScheduledTracking") {
-    showScheduledTrackingPrompt('stop');
-  }
-});
-
-// Check for time limit reached on page load
-chrome.storage.local.get(null, (data) => {
-  const hostname = window.location.hostname;
-  if (data[hostname] && data[hostname].limit && data[hostname].isTracking) {
-    const timeSpent = data[hostname].time || 0;
-    const limitMs = data[hostname].limit * 60 * 1000;
-    if (timeSpent >= limitMs) {
-      showTimeLimitReachedNotification(hostname);
-    }
+    showScheduledTrackingPrompt('stop', request.hostname);
   }
 });
 

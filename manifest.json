@@ -1,25 +1,25 @@
 {
-     "manifest_version": 2,
-     "name": "Time Management Extension",
-     "version": "1.5",
-     "description": "Track and limit time spent on websites with improved prompts, live tracking, custom reminders, and website categories",
-     "permissions": [
-       "storage",
-       "tabs",
-       "alarms",
-       "notifications"
-     ],
-     "background": {
-       "scripts": ["background.js"],
-       "persistent": false
-     },
-     "content_scripts": [
-       {
-         "matches": ["<all_urls>"],
-         "js": ["content.js"]
-       }
-     ],
-     "browser_action": {
-       "default_popup": "popup.html"
-     }
-   }
+  "manifest_version": 2,
+  "name": "Time Management Extension",
+  "version": "1.5",
+  "description": "Track and limit time spent on websites with improved prompts, live tracking, custom reminders, and website categories",
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms",
+    "notifications"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html"
+  }
+}
