@@ -5,6 +5,7 @@ To do:
 - [X] Initial release and bug fixing.
 - [X] When the timer stops, the prompt should cover the entire specific tab with a slight transparent background. 
 - [X] When the timer stops, ask the user if they would like to extend, stop or pause.
+- [ ] In the manage tab, when the category drop down is changed, it changes the time limit as well to what the category time limit is.
 - [ ] Improve UI (WOP on Figma) (Design MindMap:
 https://www.figma.com/design/SAO4ja5cJzNIgKcLBMwtkJ/TimeCaddy?node-id=0-1&node-type=canvas&m=dev)
 - [X] Allow time edit on bookmarked tabs, add a rerun button, a set timer that reads the system time and allows the user to set a specifc time to start and stop. (if the user is not in that specific tab at the time they set it at, prompt them at the time it notifies that the time is up, if they would like to extend it for that current browser session, but to not overrite current time preset).
