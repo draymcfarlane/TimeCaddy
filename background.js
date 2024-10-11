@@ -134,11 +134,20 @@ function checkSchedule(hostname, schedule) {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    if (tabs[0] && new URL(tabs[0].url).hostname === alarm.name) {
-      chrome.tabs.sendMessage(tabs[0].id, {action: "showTimeLimitReached", hostname: alarm.name});
-    }
-  });
+  if (alarm.name.startsWith('dismiss_')) {
+    const hostname = alarm.name.replace('dismiss_', '');
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      if (tabs[0] && new URL(tabs[0].url).hostname === hostname) {
+        chrome.tabs.sendMessage(tabs[0].id, {action: "showTimeLimitReached", hostname: hostname});
+      }
+    });
+  } else {
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      if (tabs[0] && new URL(tabs[0].url).hostname === alarm.name) {
+        chrome.tabs.sendMessage(tabs[0].id, {action: "showTimeLimitReached", hostname: alarm.name});
+      }
+    });
+  }
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -176,6 +185,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
           }
         }
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "dismissNotification") {
+    const dismissUntil = Date.now() + request.dismissDuration;
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname] || {};
+      siteData.dismissedUntil = dismissUntil;
+      chrome.storage.local.set({ [request.hostname]: siteData }, () => {
+        // Set an alarm to show the notification again after the dismiss period
+        chrome.alarms.create(`dismiss_${request.hostname}`, { when: dismissUntil });
         sendResponse({success: true});
       });
     });

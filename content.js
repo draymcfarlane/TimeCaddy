@@ -162,7 +162,7 @@ function showTimeLimitReachedNotification(hostname) {
     <p>Time limit reached for ${hostname}!</p>
     <button id="extendBtn">Extend Time</button>
     <button id="stopBtn">Stop Tracking</button>
-    <button id="dismissBtn">Dismiss</button>
+    <button id="dismissBtn">Dismiss for 5 minutes</button>
   `;
 
   overlayElement.appendChild(notification);
@@ -194,8 +194,14 @@ function showTimeLimitReachedNotification(hostname) {
   });
 
   document.getElementById('dismissBtn').addEventListener('click', () => {
-    document.body.removeChild(overlayElement);
-    overlayElement = null;
+    chrome.runtime.sendMessage({
+      action: "dismissNotification",
+      hostname: hostname,
+      dismissDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
+    }, () => {
+      document.body.removeChild(overlayElement);
+      overlayElement = null;
+    });
   });
 }
 
