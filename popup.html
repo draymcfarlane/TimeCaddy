@@ -27,6 +27,15 @@
     .tab-content.active {
       display: block;
     }
+        /* NEW: Styles for category search and list */
+    #categorySearch {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    #categoryList {
+      max-height: 200px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
@@ -49,6 +58,9 @@
 
   <div id="categories" class="tab-content">
     <h2>Website Categories</h2>
+        <!-- NEW: Add search input for categories -->
+        <input type="text" id="categorySearch" placeholder="Search categories">
+        <!-- END NEW -->
     <input type="text" id="categoryName" placeholder="Category name">
     <input type="number" id="categoryLimit" placeholder="Suggested limit (minutes)">
     <button id="addCategory">Add Category</button>

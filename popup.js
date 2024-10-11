@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   let isEditMode = false;
+  let allCategories = [];
 
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(button => {
@@ -257,12 +258,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const categoryLimit = document.getElementById('categoryLimit');
   const addCategoryBtn = document.getElementById('addCategory');
   const categoryList = document.getElementById('categoryList');
+  const categorySearch = document.getElementById('categorySearch');
 
-  function updateCategoryList() {
+  function updateCategoryList(filterText = '') {
     chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
+      allCategories = data.categories || [];
       categoryList.innerHTML = '';
-      categories.forEach((category, index) => {
+      const filteredCategories = allCategories.filter(category => 
+        category.name.toLowerCase().includes(filterText.toLowerCase())
+      );
+      
+      filteredCategories.forEach((category, index) => {
         const li = document.createElement('li');
         li.textContent = `${category.name} (Suggested: ${category.suggestedLimit} min)`;
         if (index >= presetCategories.length) {
@@ -273,40 +279,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         categoryList.appendChild(li);
       });
-    });
+    })
   }
 
   function addCategory() {
     const name = categoryName.value.trim();
     const limit = parseInt(categoryLimit.value);
     if (name && limit > 0) {
-      chrome.storage.sync.get('categories', (data) => {
-        const categories = data.categories || [];
-        if (!categories.some(cat => cat.name === name)) {
-          categories.push({ name, suggestedLimit: limit });
-          chrome.storage.sync.set({ categories }, () => {
-            updateCategoryList();
-            categoryName.value = '';
-            categoryLimit.value = '';
-          });
-        }
-      });
+      if (!allCategories.some(cat => cat.name === name)) {
+        allCategories.push({ name, suggestedLimit: limit });
+        chrome.storage.sync.set({ categories: allCategories }, () => {
+          updateCategoryList();
+          categoryName.value = '';
+          categoryLimit.value = '';
+        });
+      } else {
+        alert("Category already exists!");
+      }
     }
   }
 
   function removeCategory(index) {
-    chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
-      if (index >= presetCategories.length) {
-        categories.splice(index, 1);
-        chrome.storage.sync.set({ categories }, updateCategoryList);
-      } else {
-        alert("Preset categories cannot be removed.");
-      }
-    });
+    if (index >= presetCategories.length) {
+      allCategories.splice(index, 1);
+      chrome.storage.sync.set({ categories: allCategories }, () => updateCategoryList());
+    } else {
+      alert("Preset categories cannot be removed.");
+    }
   }
 
   addCategoryBtn.addEventListener('click', addCategory);
+
+  categorySearch.addEventListener('input', (e) => {
+    updateCategoryList(e.target.value);
+  });
 
   // Initial population of the lists
   updateTimeList();
