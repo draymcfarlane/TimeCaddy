@@ -27,12 +27,21 @@
     .tab-content.active {
       display: block;
     }
-        /* NEW: Styles for category search and list */
-    #categorySearch {
-      width: 100%;
-      margin-bottom: 10px;
+    .categories-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    #categoryList {
+    .search-container {
+      display: flex;
+    }
+    .search-bar {
+      width: 100%;
+    }
+    .category-list {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 5px;
       max-height: 200px;
       overflow-y: auto;
     }
@@ -57,14 +66,19 @@
   </div>
 
   <div id="categories" class="tab-content">
-    <h2>Website Categories</h2>
-        <!-- NEW: Add search input for categories -->
-        <input type="text" id="categorySearch" placeholder="Search categories">
-        <!-- END NEW -->
-    <input type="text" id="categoryName" placeholder="Category name">
-    <input type="number" id="categoryLimit" placeholder="Suggested limit (minutes)">
-    <button id="addCategory">Add Category</button>
-    <ul id="categoryList"></ul>
+    <div class="categories-container">
+      <div class="search-container">
+        <input type="text" id="categorySearch" class="search-bar" placeholder="Search categories">
+        <button id="searchButton">Search</button>
+      </div>
+      <button id="addNewCategory">Add new category</button>
+      <div class="category-list">
+        <div>Category Name</div>
+        <div>Category Time Limit</div>
+        <div></div>
+        <!-- Categories will be dynamically inserted here -->
+      </div>
+    </div>
   </div>
 
   <div id="settings" class="tab-content">
