@@ -17,7 +17,7 @@ Categories:
 - [X] Add a search bar that live displays its results as the user types.
 
 Settings:
-
+- [ ] Provide user configuration to how the extension looks.
 
 Misc:
 - [X] Initial release and bug fixing.
