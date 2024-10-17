@@ -173,10 +173,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({success: true});
   } else if (request.action === "updateSiteSettings") {
     chrome.storage.local.get(request.hostname, (data) => {
-      const updatedData = {
-        ...data[request.hostname],
-        ...request.settings
-      };
+      const currentSiteData = data[request.hostname] || {};
+      let updatedData = { ...currentSiteData, ...request.settings };
+
+      // If we're extending time, add it to the current limit
+      if (request.settings.extendTime) {
+        updatedData.limit = (currentSiteData.limit || 0) + request.settings.extendTime;
+        delete updatedData.extendTime; // Remove the extendTime property as we've used it
+      }
+
       chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
         if (updatedData.limit) {
           chrome.alarms.clear(request.hostname);
@@ -185,6 +190,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
           }
         }
+        // Notify popup to update displayed information
+        chrome.runtime.sendMessage({
+          action: "siteSettingsUpdated",
+          hostname: request.hostname,
+          newData: updatedData
+        });
         sendResponse({success: true});
       });
     });
