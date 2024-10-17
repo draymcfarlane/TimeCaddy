@@ -156,6 +156,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       [request.hostname]: {
         time: 0,
         limit: request.limit,
+        initialLimit: request.limit,
         schedule: request.schedule,
         reminder: request.reminder,
         isTracking: true,
@@ -179,6 +180,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // If we're extending time, add it to the current limit
       if (request.settings.extendTime) {
         updatedData.limit = (currentSiteData.limit || 0) + request.settings.extendTime;
+        if (!updatedData.initialLimit) {
+          updatedData.initialLimit = currentSiteData.limit || 0;
+        }
         delete updatedData.extendTime; // Remove the extendTime property as we've used it
       }
 

@@ -24,7 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const websiteName = hostname.replace(/^www\./, '').split('.')[0];
           listItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
           if (siteData.limit) {
-            listItem.textContent += ` (Limit: ${siteData.limit} minutes)`;
+            const initialLimit = siteData.initialLimit || siteData.limit;
+            const extendedTime = siteData.limit - initialLimit;
+            listItem.textContent += ` (Limit: ${initialLimit} minutes + ${extendedTime} minutes extended)`;
           }
           if (siteData.category) {
             listItem.textContent += ` [${siteData.category}]`;
@@ -71,7 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-    listItem.innerHTML += `${websiteName} (Limit: ${siteData.limit} minutes) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    const initialLimit = siteData.initialLimit || siteData.limit;
+    const extendedTime = siteData.limit - initialLimit;
+    listItem.innerHTML += `${websiteName} (Limit: ${initialLimit} minutes + ${extendedTime} minutes extended) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
     
     if (siteData.reminder) {
       listItem.innerHTML += ` - Reminder: ${siteData.reminder.text} at ${siteData.reminder.percentage}%`;
@@ -346,121 +350,37 @@ document.addEventListener('DOMContentLoaded', () => {
       const hours = Math.floor(timeSpent / 3600);
       const minutes = Math.floor((timeSpent % 3600) / 60);
       const seconds = Math.floor(timeSpent % 60);
-      trackListItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s (Limit: ${newData.limit} minutes)`;
+      const initialLimit = newData.initialLimit || newData.limit;
+      const extendedTime = newData.limit - initialLimit;
+      trackListItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s (Limit: ${initialLimit} minutes + ${extendedTime} minutes extended)`;
+      if (newData.category) {
+        trackListItem.textContent += ` [${newData.category}]`;
+      }
     }
 
-// Update in Manage section
-const siteList = document.getElementById('siteList');
-const manageListItem = Array.from(siteList.children).find(div => div.textContent.includes(hostname));
-if (manageListItem) {
-  const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-  manageListItem.childNodes[0].textContent = `${websiteName} (Limit: ${newData.limit} minutes) - ${newData.isTracking ? 'Tracking' : 'Not Tracking'}`;
-}
-}
+    // Update in Manage section
+    const siteList = document.getElementById('siteList');
+    const manageListItem = Array.from(siteList.children).find(div => div.textContent.includes(hostname));
+    if (manageListItem) {
+      const websiteName = hostname.replace(/^www\./, '').split('.')[0];
+      const initialLimit = newData.initialLimit || newData.limit;
+      const extendedTime = newData.limit - initialLimit;
+      manageListItem.childNodes[0].textContent = `${websiteName} (Limit: ${initialLimit} minutes + ${extendedTime} minutes extended) - ${newData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    }
+  }
 
-// Listen for site settings updates
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-if (request.action === "siteSettingsUpdated") {
-  updateSiteInLists(request.hostname, request.newData);
-}
-if (request.action === "updateTime") {
+  // Listen for site settings updates
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "siteSettingsUpdated") {
+      updateSiteInLists(request.hostname, request.newData);
+    }
+    if (request.action === "updateTime") {
+      updateTimeList();
+    }
+  });
+
+  // Initial population of the lists
   updateTimeList();
-}
-});
-
-// Initial population of the lists
-updateTimeList();
-updateSiteList();
-updateCategoryList();
-
-// Category tab functionality
-const categoryTab = document.getElementById('categories');
-const categorySearchInput = categoryTab.querySelector('#categorySearch');
-const addCategoryBtn = categoryTab.querySelector('#addNewCategory');
-const categoryListElement = categoryTab.querySelector('.category-list');
-
-categorySearchInput.addEventListener('input', (e) => {
-updateCategoryList(e.target.value);
-});
-
-addCategoryBtn.addEventListener('click', () => {
-const name = prompt("Enter category name:");
-const limit = parseInt(prompt("Enter suggested time limit (in minutes):"));
-if (name && !isNaN(limit)) {
-  chrome.storage.sync.get('categories', (data) => {
-    const categories = data.categories || [];
-    if (!categories.some(cat => cat.name === name)) {
-      categories.push({ name, suggestedLimit: limit });
-      chrome.storage.sync.set({ categories }, () => {
-        updateCategoryList();
-      });
-    } else {
-      alert("Category already exists!");
-    }
-  });
-}
-});
-
-function updateCategoryList(filterText = '') {
-chrome.storage.sync.get('categories', (data) => {
-  const categories = data.categories || [];
-  const filteredCategories = categories.filter(category => 
-    category.name.toLowerCase().includes(filterText.toLowerCase())
-  );
-  
-  // Clear existing categories (except headers)
-  while (categoryListElement.children.length > 3) {
-    categoryListElement.removeChild(categoryListElement.lastChild);
-  }
-
-  filteredCategories.forEach((category, index) => {
-    const editBtn = document.createElement('button');
-    editBtn.textContent = 'edit';
-    editBtn.onclick = () => editCategory(index);
-
-    const nameDiv = document.createElement('div');
-    nameDiv.textContent = category.name;
-
-    const timeDiv = document.createElement('div');
-    timeDiv.textContent = formatTime(category.suggestedLimit);
-
-    categoryListElement.appendChild(editBtn);
-    categoryListElement.appendChild(nameDiv);
-    categoryListElement.appendChild(timeDiv);
-  });
-});
-}
-
-function editCategory(index) {
-chrome.storage.sync.get('categories', (data) => {
-  const categories = data.categories || [];
-  const category = categories[index];
-  const newName = prompt("Enter new category name:", category.name);
-  const newLimit = parseInt(prompt("Enter new suggested time limit (in minutes):", category.suggestedLimit));
-  if (newName && !isNaN(newLimit)) {
-    categories[index] = { name: newName, suggestedLimit: newLimit };
-    chrome.storage.sync.set({ categories }, () => {
-      updateCategoryList();
-    });
-  }
-});
-}
-
-// Settings tab functionality
-// Add any global settings functionality here if needed
-
-// Helper function to format time
-function formatTime(minutes) {
-if (minutes < 60) {
-  return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-} else {
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  if (remainingMinutes === 0) {
-    return `${hours} hour${hours !== 1 ? 's' : ''}`;
-  } else {
-    return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
-  }
-}
-}
+  updateSiteList();
+  updateCategoryList();
 });
