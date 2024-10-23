@@ -175,15 +175,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "updateSiteSettings") {
     chrome.storage.local.get(request.hostname, (data) => {
       const currentSiteData = data[request.hostname] || {};
-      let updatedData = { ...currentSiteData, ...request.settings };
+      let updatedData = { ...currentSiteData };
 
-      // If we're extending time, add it to the current limit
+      // If we're extending time
       if (request.settings.extendTime) {
-        updatedData.limit = (currentSiteData.limit || 0) + request.settings.extendTime;
+        // Keep track of the initial limit if it's not already set
         if (!updatedData.initialLimit) {
-          updatedData.initialLimit = currentSiteData.limit || 0;
+          updatedData.initialLimit = currentSiteData.limit;
         }
-        delete updatedData.extendTime; // Remove the extendTime property as we've used it
+        // Add the new extended time to the current limit
+        updatedData.limit = currentSiteData.limit + request.settings.extendTime;
+        // Keep track of total extended time
+        updatedData.totalExtendedTime = (currentSiteData.totalExtendedTime || 0) + request.settings.extendTime;
+      } else {
+        // For other settings updates
+        updatedData = { ...updatedData, ...request.settings };
       }
 
       chrome.storage.local.set({ [request.hostname]: updatedData }, () => {

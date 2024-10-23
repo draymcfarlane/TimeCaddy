@@ -27,11 +27,11 @@ function updateTimeList() {
         
         if (siteData.limit) {
           const initialLimit = siteData.initialLimit || siteData.limit;
-          const totalExtendedTime = siteData.limit - initialLimit;
+          const totalExtendedTime = siteData.totalExtendedTime || 0;
           if (totalExtendedTime > 0) {
             listItem.textContent += ` (Original limit: ${initialLimit} minutes, Extended by: ${totalExtendedTime} minutes)`;
           } else {
-            listItem.textContent += ` (Limit: ${initialLimit} minutes)`;
+            listItem.textContent += ` (Original limit: ${initialLimit} minutes)`;
           }
         }
         
@@ -69,30 +69,30 @@ function updateTimeList() {
     });
   }
 
-function createSiteListItem(hostname, siteData, categories) {
-  const listItem = document.createElement('div');
-  
-  if (isEditMode) {
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'site-checkbox';
-    checkbox.dataset.hostname = hostname;
-    listItem.appendChild(checkbox);
-  }
-  
-  const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-  const initialLimit = siteData.initialLimit || siteData.limit;
-  const totalExtendedTime = siteData.limit - initialLimit;
-  
-  let timeDisplay = `${websiteName} (Original limit: ${initialLimit} minutes`;
-  if (totalExtendedTime > 0) {
-    timeDisplay += `, Extended by: ${totalExtendedTime} minutes)`;
-  } else {
-    timeDisplay += ')';
-  }
-  timeDisplay += ` - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
-  
-  listItem.innerHTML += timeDisplay;
+  function createSiteListItem(hostname, siteData, categories) {
+    const listItem = document.createElement('div');
+    
+    if (isEditMode) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'site-checkbox';
+      checkbox.dataset.hostname = hostname;
+      listItem.appendChild(checkbox);
+    }
+    
+    const websiteName = hostname.replace(/^www\./, '').split('.')[0];
+    const initialLimit = siteData.initialLimit || siteData.limit;
+    const totalExtendedTime = siteData.totalExtendedTime || 0;
+    
+    let timeDisplay = `${websiteName} (Original limit: ${initialLimit} minutes`;
+    if (totalExtendedTime > 0) {
+      timeDisplay += `, Extended by: ${totalExtendedTime} minutes)`;
+    } else {
+      timeDisplay += ')';
+    }
+    timeDisplay += ` - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    
+    listItem.innerHTML += timeDisplay;
   
   if (siteData.reminder) {
     listItem.innerHTML += ` - Reminder: ${siteData.reminder.text} at ${siteData.reminder.percentage}%`;
@@ -371,11 +371,11 @@ function createSiteListItem(hostname, siteData, categories) {
       let displayText = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
       
       const initialLimit = newData.initialLimit || newData.limit;
-      const totalExtendedTime = newData.limit - initialLimit;
+      const totalExtendedTime = newData.totalExtendedTime || 0;
       if (totalExtendedTime > 0) {
         displayText += ` (Original limit: ${initialLimit} minutes, Extended by: ${totalExtendedTime} minutes)`;
       } else {
-        displayText += ` (Limit: ${initialLimit} minutes)`;
+        displayText += ` (Original limit: ${initialLimit} minutes)`;
       }
       
       if (newData.category) {
@@ -384,14 +384,14 @@ function createSiteListItem(hostname, siteData, categories) {
       
       trackListItem.textContent = displayText;
     }
-
+  
     // Update in Manage section
     const siteList = document.getElementById('siteList');
     const manageListItem = Array.from(siteList.children).find(div => div.textContent.includes(hostname));
     if (manageListItem) {
       const websiteName = hostname.replace(/^www\./, '').split('.')[0];
       const initialLimit = newData.initialLimit || newData.limit;
-      const totalExtendedTime = newData.limit - initialLimit;
+      const totalExtendedTime = newData.totalExtendedTime || 0;
       
       let displayText = `${websiteName} (Original limit: ${initialLimit} minutes`;
       if (totalExtendedTime > 0) {
@@ -403,7 +403,7 @@ function createSiteListItem(hostname, siteData, categories) {
       
       manageListItem.childNodes[0].textContent = displayText;
     }
-}
+  }
 
   // Listen for site settings updates
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
