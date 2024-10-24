@@ -105,7 +105,19 @@ function saveTimeForActiveTab() {
         }, () => {
           chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: newTime});
 
-          // Check if total time limit is reached
+          // Check reminder first
+          if (siteData[hostname].reminder) {
+            const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
+            const reminderThreshold = totalLimit * (siteData[hostname].reminder.percentage / 100);
+            if (newTime >= reminderThreshold && currentTime < reminderThreshold) {
+              chrome.tabs.sendMessage(activeTabId, {
+                action: "showCustomReminder",
+                message: siteData[hostname].reminder.text
+              });
+            }
+          }
+
+          // Then check total time limit
           if (newTime >= totalTimeLimit && currentTime < totalTimeLimit) {
             chrome.tabs.sendMessage(activeTabId, {
               action: "showTimeLimitReached", 
