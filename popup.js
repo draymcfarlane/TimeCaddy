@@ -122,61 +122,87 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function editSiteSettings(hostname, siteData) {
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      padding: 20px;
-      border: 1px solid #ccc;
-      z-index: 1000;
-    `;
-    dialog.innerHTML = `
-      <h3>Edit Settings for ${hostname}</h3>
-      <div>
-        <label>Original Time Limit (minutes):
-          <input type="number" id="originalLimit" value="${siteData.initialLimit}">
-        </label>
-      </div>
-      <div>
-        <label>Extended Time (minutes):
-          <input type="number" id="extendedTime" value="${siteData.totalExtendedTime || 0}">
-        </label>
-      </div>
-      <button id="saveSettings">Save</button>
-      <button id="cancelEdit">Cancel</button>
-    `;
-    document.body.appendChild(dialog);
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border: 1px solid #ccc;
+    z-index: 1000;
+    width: 300px;
+  `;
+  dialog.innerHTML = `
+    <h3>Edit Settings for ${hostname}</h3>
+    <div>
+      <label>Original Time Limit (minutes):
+        <input type="number" id="originalLimit" value="${siteData.initialLimit}">
+      </label>
+    </div>
+    <div>
+      <label>Extended Time (minutes):
+        <input type="number" id="extendedTime" value="${siteData.totalExtendedTime || 0}">
+      </label>
+    </div>
+    <div>
+      <label>Reminder Text:
+        <input type="text" id="reminderText" value="${siteData.reminder ? siteData.reminder.text : ''}" placeholder="Enter reminder text">
+      </label>
+    </div>
+    <div>
+      <label>Reminder Percentage:
+        <input type="number" id="reminderPercentage" value="${siteData.reminder ? siteData.reminder.percentage : ''}" placeholder="Enter percentage (0-100)">
+      </label>
+    </div>
+    <button id="saveSettings">Save</button>
+    <button id="cancelEdit">Cancel</button>
+  `;
+  document.body.appendChild(dialog);
 
-    document.getElementById('saveSettings').addEventListener('click', () => {
-      const newOriginalLimit = parseInt(document.getElementById('originalLimit').value);
-      const newExtendedTime = parseInt(document.getElementById('extendedTime').value);
-      
-      const updatedData = {
-        ...siteData,
-        initialLimit: newOriginalLimit,
-        totalExtendedTime: newExtendedTime
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    const newOriginalLimit = parseInt(document.getElementById('originalLimit').value);
+    const newExtendedTime = parseInt(document.getElementById('extendedTime').value);
+    const reminderText = document.getElementById('reminderText').value.trim();
+    const reminderPercentage = parseInt(document.getElementById('reminderPercentage').value);
+    
+    const updatedData = {
+      ...siteData,
+      initialLimit: newOriginalLimit,
+      totalExtendedTime: newExtendedTime
+    };
+
+    // Handle reminder settings
+    if (reminderText && !isNaN(reminderPercentage) && reminderPercentage >= 0 && reminderPercentage <= 100) {
+      updatedData.reminder = {
+        text: reminderText,
+        percentage: reminderPercentage
       };
+    } else if (!reminderText && !reminderPercentage) {
+      delete updatedData.reminder;
+    } else {
+      alert('Please enter both reminder text and a valid percentage (0-100), or leave both empty');
+      return;
+    }
 
-      if (siteData.isTracking) {
-        if (confirm('Changes will take effect when tracking is restarted. Stop tracking now?')) {
-          updatedData.isTracking = false;
-        }
+    if (siteData.isTracking) {
+      if (confirm('Changes will take effect when tracking is restarted. Stop tracking now?')) {
+        updatedData.isTracking = false;
       }
+    }
 
-      chrome.storage.local.set({ [hostname]: updatedData }, () => {
-        document.body.removeChild(dialog);
-        updateSiteList();
-        updateTimeList();
-      });
-    });
-
-    document.getElementById('cancelEdit').addEventListener('click', () => {
+    chrome.storage.local.set({ [hostname]: updatedData }, () => {
       document.body.removeChild(dialog);
+      updateSiteList();
+      updateTimeList();
     });
-  }
+  });
+
+  document.getElementById('cancelEdit').addEventListener('click', () => {
+    document.body.removeChild(dialog);
+  });
+}
 
   function stopTracking(hostname) {
     chrome.runtime.sendMessage({
