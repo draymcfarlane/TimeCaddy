@@ -6,44 +6,97 @@
     body {
       width: 300px;
       font-family: Arial, sans-serif;
+      padding: 10px;
     }
+    
     .tabs {
       display: flex;
       justify-content: space-between;
       margin-bottom: 10px;
+      border-bottom: 1px solid #ccc;
     }
+    
     .tab-btn {
       background: #f0f0f0;
       border: none;
-      padding: 5px 10px;
+      padding: 8px 15px;
       cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      border: 1px solid transparent;
     }
+    
     .tab-btn:hover {
       background: #e0e0e0;
     }
+    
+    .tab-btn.active {
+      background: white;
+      border: 1px solid #ccc;
+      border-bottom: 1px solid white;
+      margin-bottom: -1px;
+    }
+    
     .tab-content {
       display: none;
+      padding: 10px 0;
     }
+    
     .tab-content.active {
       display: block;
     }
-    .categories-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+
+    #timeList, #siteList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
     }
-    .search-container {
-      display: flex;
+
+    #timeList li, #siteList div {
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #eee;
+      border-radius: 4px;
     }
-    .search-bar {
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button#stopBtn {
+      background: #f44336;
+    }
+
+    button#stopBtn:hover {
+      background: #da190b;
+    }
+
+    select {
+      margin: 5px 0;
+      padding: 3px;
+    }
+
+    input[type="text"], input[type="number"] {
       width: 100%;
+      padding: 5px;
+      margin: 5px 0;
+      box-sizing: border-box;
     }
+
     .category-list {
       display: grid;
       grid-template-columns: auto 1fr auto;
-      gap: 5px;
-      max-height: 200px;
-      overflow-y: auto;
+      gap: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -66,24 +119,21 @@
   </div>
 
   <div id="categories" class="tab-content">
-    <div class="categories-container">
-      <div class="search-container">
-        <input type="text" id="categorySearch" class="search-bar" placeholder="Search categories">
-        <button id="searchButton">Search</button>
-      </div>
-      <button id="addNewCategory">Add new category</button>
-      <div class="category-list">
-        <div>Category Name</div>
-        <div>Category Time Limit</div>
-        <div></div>
-        <!-- Categories will be dynamically inserted here -->
-      </div>
+    <h2>Website Categories</h2>
+    <input type="text" id="categorySearch" placeholder="Search categories">
+    <input type="text" id="categoryName" placeholder="Category name">
+    <input type="number" id="categoryLimit" placeholder="Suggested limit (minutes)">
+    <button id="addNewCategory">Add new category</button>
+    <div class="category-list">
+      <div>Category Name</div>
+      <div>Time Limit</div>
+      <div>Actions</div>
     </div>
   </div>
 
   <div id="settings" class="tab-content">
     <h2>Settings</h2>
-    <!-- Add any global settings here if needed -->
+    <!-- Add settings content here if needed -->
   </div>
 
   <script src="popup.js"></script>

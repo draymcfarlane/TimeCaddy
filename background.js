@@ -60,10 +60,10 @@ function handleTabChange(tabId) {
             const timeSpent = data[hostname].time || 0;
             const initialLimit = data[hostname].initialLimit;
             const totalExtendedTime = data[hostname].totalExtendedTime || 0;
-            const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
+            const totalTimeLimit = (initialLimit + totalExtendedTime) * 60 * 1000; // Total time limit in milliseconds
 
-            if (timeSpent < totalLimit) {
-              const remainingTime = (totalLimit - timeSpent) / 60000;
+            if (timeSpent < totalTimeLimit) {
+              const remainingTime = (totalTimeLimit - timeSpent) / 60000;
               chrome.alarms.create(hostname, { delayInMinutes: remainingTime });
             } else {
               chrome.tabs.sendMessage(tabId, {
@@ -95,7 +95,7 @@ function saveTimeForActiveTab() {
         const newTime = currentTime + timeSpent;
         const initialLimit = siteData[hostname].initialLimit;
         const totalExtendedTime = siteData[hostname].totalExtendedTime || 0;
-        const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
+        const totalTimeLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
 
         chrome.storage.local.set({
           [hostname]: {
@@ -105,7 +105,8 @@ function saveTimeForActiveTab() {
         }, () => {
           chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: newTime});
 
-          if (newTime >= totalLimit && currentTime < totalLimit) {
+          // Check if total time limit is reached
+          if (newTime >= totalTimeLimit && currentTime < totalTimeLimit) {
             chrome.tabs.sendMessage(activeTabId, {
               action: "showTimeLimitReached", 
               hostname: hostname,
@@ -209,17 +210,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     });
     return true;
-  } else if (request.action === "dismissNotification") {
-    const dismissUntil = Date.now() + request.dismissDuration;
-    chrome.storage.local.get(request.hostname, (data) => {
-      const siteData = data[request.hostname] || {};
-      siteData.dismissedUntil = dismissUntil;
-      chrome.storage.local.set({ [request.hostname]: siteData }, () => {
-        chrome.alarms.create(`dismiss_${request.hostname}`, { when: dismissUntil });
-        sendResponse({success: true});
-      });
-    });
-    return true;
   } else if (request.action === "stopTracking") {
     chrome.storage.local.get(request.hostname, (data) => {
       const siteData = data[request.hostname];
@@ -239,11 +229,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const updatedData = {
         ...siteData,
         isTracking: true,
-        time: 0
+        time: 0,
+        totalExtendedTime: 0
       };
       chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
-        const totalLimit = (updatedData.initialLimit + (updatedData.totalExtendedTime || 0));
-        chrome.alarms.create(request.hostname, { delayInMinutes: totalLimit });
+        chrome.alarms.create(request.hostname, { delayInMinutes: updatedData.initialLimit });
+        chrome.runtime.sendMessage({
+          action: "siteSettingsUpdated",
+          hostname: request.hostname,
+          newData: updatedData
+        });
         sendResponse({success: true});
       });
     });
@@ -263,6 +258,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (remainingTime > 0) {
           chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
         }
+        chrome.runtime.sendMessage({
+          action: "siteSettingsUpdated",
+          hostname: request.hostname,
+          newData: updatedData
+        });
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "dismissNotification") {
+    const dismissUntil = Date.now() + request.dismissDuration;
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname] || {};
+      siteData.dismissedUntil = dismissUntil;
+      chrome.storage.local.set({ [request.hostname]: siteData }, () => {
+        chrome.alarms.create(`dismiss_${request.hostname}`, { when: dismissUntil });
         sendResponse({success: true});
       });
     });

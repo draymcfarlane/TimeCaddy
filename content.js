@@ -129,78 +129,119 @@ function showTimeSettingsPrompt(hostname, category, suggestedLimit) {
   });
 }
 
-function showTimeLimitReachedNotification(hostname) {
-  if (overlayElement) {
-    document.body.removeChild(overlayElement);
-  }
-
-  overlayElement = document.createElement('div');
-  overlayElement.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2147483647;
-  `;
-
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    background: #ff4d4d;
-    color: white;
-    padding: 20px;
-    border-radius: 5px;
-    font-size: 24px;
-    text-align: center;
-  `;
-
-  notification.innerHTML = `
-    <p>Time limit reached for ${hostname}!</p>
-    <button id="extendBtn">Extend Time</button>
-    <button id="stopBtn">Stop Tracking</button>
-    <button id="dismissBtn">Dismiss for 5 minutes</button>
-  `;
-
-  overlayElement.appendChild(notification);
-  document.body.appendChild(overlayElement);
-
-  document.getElementById('extendBtn').addEventListener('click', () => {
-    const additionalTime = prompt("Enter additional time in minutes:", "30");
-    if (additionalTime !== null) {
-      chrome.runtime.sendMessage({
-        action: "updateSiteSettings",
-        hostname: hostname,
-        settings: { limit: parseInt(additionalTime) }
-      }, () => {
-        document.body.removeChild(overlayElement);
-        overlayElement = null;
-      });
+function showTimeLimitReachedNotification(hostname, data = {}) {
+  chrome.storage.local.get(hostname, (siteData) => {
+    if (overlayElement) {
+      document.body.removeChild(overlayElement);
     }
-  });
 
-  document.getElementById('stopBtn').addEventListener('click', () => {
-    chrome.runtime.sendMessage({
-      action: "updateSiteSettings",
-      hostname: hostname,
-      settings: { isTracking: false }
-    }, () => {
-      document.body.removeChild(overlayElement);
-      overlayElement = null;
+    overlayElement = document.createElement('div');
+    overlayElement.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2147483647;
+    `;
+
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      background: #ff4d4d;
+      color: white;
+      padding: 20px;
+      border-radius: 5px;
+      font-size: 24px;
+      text-align: center;
+    `;
+
+    const initialLimit = siteData[hostname].initialLimit;
+    const totalExtendedTime = siteData[hostname].totalExtendedTime || 0;
+    const totalTime = initialLimit + totalExtendedTime;
+
+    notification.innerHTML = `
+      <p>Time limit reached for ${hostname}!</p>
+      <p>Original limit: ${initialLimit} minutes</p>
+      ${totalExtendedTime > 0 ? `<p>Extended time: ${totalExtendedTime} minutes</p>` : ''}
+      <p>Total time: ${totalTime} minutes</p>
+      <button id="extendBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Extend Time</button>
+      <button id="stopBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Stop Tracking</button>
+      <button id="dismissBtn" style="
+        background: white;
+        color: #ff4d4d;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 18px;
+      ">Dismiss for 5 minutes</button>
+    `;
+
+    overlayElement.appendChild(notification);
+    document.body.appendChild(overlayElement);
+
+    document.getElementById('extendBtn').addEventListener('click', () => {
+      const additionalTime = prompt("Enter additional time in minutes:", "30");
+      if (additionalTime !== null) {
+        chrome.runtime.sendMessage({
+          action: "extendTime",
+          hostname: hostname,
+          additionalTime: parseInt(additionalTime)
+        }, () => {
+          if (overlayElement) {
+            document.body.removeChild(overlayElement);
+            overlayElement = null;
+          }
+        });
+      }
     });
-  });
 
-  document.getElementById('dismissBtn').addEventListener('click', () => {
-    chrome.runtime.sendMessage({
-      action: "dismissNotification",
-      hostname: hostname,
-      dismissDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
-    }, () => {
-      document.body.removeChild(overlayElement);
-      overlayElement = null;
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: "stopTracking",
+        hostname: hostname
+      }, () => {
+        if (overlayElement) {
+          document.body.removeChild(overlayElement);
+          overlayElement = null;
+        }
+      });
+    });
+
+    document.getElementById('dismissBtn').addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: "dismissNotification",
+        hostname: hostname,
+        dismissDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
+      }, () => {
+        if (overlayElement) {
+          document.body.removeChild(overlayElement);
+          overlayElement = null;
+        }
+      });
     });
   });
 }
@@ -264,7 +305,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "promptTrack") {
     createPromptDialog(request.hostname);
   } else if (request.action === "showTimeLimitReached") {
-    showTimeLimitReachedNotification(request.hostname);
+    showTimeLimitReachedNotification(request.hostname, request);
   } else if (request.action === "showCustomReminder") {
     showCustomReminder(request.message);
   } else if (request.action === "startScheduledTracking") {

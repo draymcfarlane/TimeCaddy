@@ -9,45 +9,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-// Display time spent on websites
-function updateTimeList() {
-  chrome.storage.local.get(null, (data) => {
-    const timeList = document.getElementById('timeList');
-    timeList.innerHTML = '';
-    for (const [hostname, siteData] of Object.entries(data)) {
-      if (siteData.isTracking) {
-        const listItem = document.createElement('li');
-        const timeSpent = siteData.time / 1000;
-        const hours = Math.floor(timeSpent / 3600);
-        const minutes = Math.floor((timeSpent % 3600) / 60);
-        const seconds = Math.floor(timeSpent % 60);
-        const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-        
-        let displayText = `${websiteName}: ${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
-        displayText += ` (Original limit: ${siteData.initialLimit} minutes`;
-        
-        if (siteData.totalExtendedTime > 0) {
-          displayText += `, Extended by: ${siteData.totalExtendedTime} minutes`;
-        }
-        displayText += ')';
-        
-        if (siteData.category) {
-          displayText += ` [${siteData.category}]`;
-        }
-        
-        listItem.textContent = displayText;
+  // Display time spent on websites
+  function updateTimeList() {
+    chrome.storage.local.get(null, (data) => {
+      const timeList = document.getElementById('timeList');
+      timeList.innerHTML = '';
+      for (const [hostname, siteData] of Object.entries(data)) {
+        if (siteData.isTracking) {
+          const listItem = document.createElement('li');
+          const timeSpent = siteData.time / 1000;
+          const hours = Math.floor(timeSpent / 3600);
+          const minutes = Math.floor((timeSpent % 3600) / 60);
+          const seconds = Math.floor(timeSpent % 60);
+          const websiteName = hostname.replace(/^www\./, '').split('.')[0];
+          
+          let displayText = `${websiteName}: ${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+          displayText += ` (Original limit: ${siteData.initialLimit} minutes`;
+          
+          if (siteData.totalExtendedTime > 0) {
+            displayText += `, Extended by: ${siteData.totalExtendedTime} minutes`;
+          }
+          displayText += ')';
+          
+          if (siteData.category) {
+            displayText += ` [${siteData.category}]`;
+          }
+          
+          listItem.textContent = displayText;
 
-        // Add stop tracking button
-        const stopButton = document.createElement('button');
-        stopButton.textContent = 'Stop Tracking';
-        stopButton.onclick = () => stopTracking(hostname, siteData);
-        listItem.appendChild(stopButton);
-        
-        timeList.appendChild(listItem);
+          // Add stop tracking button
+          const stopButton = document.createElement('button');
+          stopButton.textContent = 'Stop Tracking';
+          stopButton.onclick = () => stopTracking(hostname);
+          listItem.appendChild(stopButton);
+          
+          timeList.appendChild(listItem);
+        }
       }
-    }
-  });
-}
+    });
+  }
 
   // Display managed sites
   function updateSiteList() {
@@ -76,6 +76,7 @@ function updateTimeList() {
   function createSiteListItem(hostname, siteData, categories) {
     const listItem = document.createElement('div');
     
+    // Add checkbox for edit mode
     if (isEditMode) {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -92,20 +93,31 @@ function updateTimeList() {
     }
     displayText += `) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
     
-    listItem.innerHTML = displayText;
+    const textDiv = document.createElement('div');
+    textDiv.textContent = displayText;
+    listItem.appendChild(textDiv);
+    
+    // Add category selector
+    const categorySelect = document.createElement('select');
+    categorySelect.innerHTML = '<option value="">No Category</option>';
+    categories.forEach(category => {
+      categorySelect.innerHTML += `<option value="${category.name}" ${siteData.category === category.name ? 'selected' : ''}>${category.name}</option>`;
+    });
+    categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
+    listItem.appendChild(categorySelect);
     
     // Add rerun button
     const rerunButton = document.createElement('button');
     rerunButton.textContent = 'Rerun';
-    rerunButton.onclick = () => rerunTracking(hostname, siteData);
+    rerunButton.onclick = () => rerunTracking(hostname);
     listItem.appendChild(rerunButton);
-  
+
     // Add edit button
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit';
     editButton.onclick = () => editSiteSettings(hostname, siteData);
     listItem.appendChild(editButton);
-  
+
     return listItem;
   }
 
@@ -137,7 +149,7 @@ function updateTimeList() {
       <button id="cancelEdit">Cancel</button>
     `;
     document.body.appendChild(dialog);
-  
+
     document.getElementById('saveSettings').addEventListener('click', () => {
       const newOriginalLimit = parseInt(document.getElementById('originalLimit').value);
       const newExtendedTime = parseInt(document.getElementById('extendedTime').value);
@@ -147,23 +159,50 @@ function updateTimeList() {
         initialLimit: newOriginalLimit,
         totalExtendedTime: newExtendedTime
       };
-  
+
       if (siteData.isTracking) {
         if (confirm('Changes will take effect when tracking is restarted. Stop tracking now?')) {
           updatedData.isTracking = false;
         }
       }
-  
+
       chrome.storage.local.set({ [hostname]: updatedData }, () => {
         document.body.removeChild(dialog);
         updateSiteList();
         updateTimeList();
       });
     });
-  
+
     document.getElementById('cancelEdit').addEventListener('click', () => {
       document.body.removeChild(dialog);
     });
+  }
+
+  function stopTracking(hostname) {
+    chrome.runtime.sendMessage({
+      action: "stopTracking",
+      hostname: hostname
+    }, () => {
+      // Remove from Track tab immediately
+      const timeList = document.getElementById('timeList');
+      const item = Array.from(timeList.children).find(li => li.textContent.includes(hostname));
+      if (item) {
+        timeList.removeChild(item);
+      }
+      updateSiteList(); // Update Manage tab
+    });
+  }
+
+  function rerunTracking(hostname) {
+    if (confirm('This will reset the tracking and remove any time extensions. Continue?')) {
+      chrome.runtime.sendMessage({
+        action: "rerunTracking",
+        hostname: hostname,
+      }, () => {
+        updateTimeList();
+        updateSiteList();
+      });
+    }
   }
 
   // Update site category
@@ -273,134 +312,18 @@ function updateTimeList() {
     });
   }
 
-  function formatTime(minutes) {
-    if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      if (remainingMinutes === 0) {
-        return `${hours} hour${hours !== 1 ? 's' : ''}`;
-      } else {
-        return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
-      }
-    }
-  }
-
-  function addNewCategory() {
-    const name = prompt("Enter category name:");
-    const limit = parseInt(prompt("Enter time limit in minutes:"));
-    if (name && !isNaN(limit)) {
-      chrome.storage.sync.get('categories', (data) => {
-        const categories = data.categories || [];
-        if (!categories.some(cat => cat.name === name)) {
-          categories.push({ name, suggestedLimit: limit });
-          chrome.storage.sync.set({ categories }, updateCategoryList);
-        } else {
-          alert("Category already exists!");
-        }
-      });
-    }
-  }
-
-  function editCategory(index) {
-    chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
-      const category = categories[index];
-      const newName = prompt("Enter new category name:", category.name);
-      const newLimit = parseInt(prompt("Enter new time limit in minutes:", category.suggestedLimit));
-      if (newName && !isNaN(newLimit)) {
-        categories[index] = { name: newName, suggestedLimit: newLimit };
-        chrome.storage.sync.set({ categories }, updateCategoryList);
-      }
-    });
-  }
-
-  addNewCategoryBtn.addEventListener('click', addNewCategory);
-  searchButton.addEventListener('click', () => updateCategoryList(categorySearch.value));
-  categorySearch.addEventListener('input', (e) => updateCategoryList(e.target.value));
-
-  // Handle site settings updates
-  function updateSiteInLists(hostname, newData) {
-    // Update in Track section
-    const timeList = document.getElementById('timeList');
-    const trackListItem = Array.from(timeList.children).find(li => li.textContent.includes(hostname));
-    if (trackListItem) {
-      const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-      const timeSpent = newData.time / 1000;
-      const hours = Math.floor(timeSpent / 3600);
-      const minutes = Math.floor((timeSpent % 3600) / 60);
-      const seconds = Math.floor(timeSpent % 60);
-      
-      let displayText = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
-      
-      const initialLimit = newData.initialLimit || newData.limit;
-      const totalExtendedTime = newData.totalExtendedTime || 0;
-      if (totalExtendedTime > 0) {
-        displayText += ` (Original limit: ${initialLimit} minutes, Extended by: ${totalExtendedTime} minutes)`;
-      } else {
-        displayText += ` (Original limit: ${initialLimit} minutes)`;
-      }
-      
-      if (newData.category) {
-        displayText += ` [${newData.category}]`;
-      }
-      
-      trackListItem.textContent = displayText;
-    }
-  
-    // Update in Manage section
-    const siteList = document.getElementById('siteList');
-    const manageListItem = Array.from(siteList.children).find(div => div.textContent.includes(hostname));
-    if (manageListItem) {
-      const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-      const initialLimit = newData.initialLimit || newData.limit;
-      const totalExtendedTime = newData.totalExtendedTime || 0;
-      
-      let displayText = `${websiteName} (Original limit: ${initialLimit} minutes`;
-      if (totalExtendedTime > 0) {
-        displayText += `, Extended by: ${totalExtendedTime} minutes)`;
-      } else {
-        displayText += ')';
-      }
-      displayText += ` - ${newData.isTracking ? 'Tracking' : 'Not Tracking'}`;
-      
-      manageListItem.childNodes[0].textContent = displayText;
-    }
-  }
-
-  // Listen for site settings updates
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "siteSettingsUpdated") {
-      updateSiteInLists(request.hostname, request.newData);
-    }
-    if (request.action === "updateTime") {
-      updateTimeList();
-    }
-  });
-
   // Initial population of the lists
   updateTimeList();
   updateSiteList();
   updateCategoryList();
 
-  function stopTracking(hostname, siteData) {
-    chrome.runtime.sendMessage({
-      action: "stopTracking",
-      hostname: hostname
-    }, () => {
+  // Listen for live updates
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "updateTime") {
+      updateTimeList();
+    } else if (request.action === "siteSettingsUpdated") {
       updateTimeList();
       updateSiteList();
-    });
-  }
-  
-  function rerunTracking(hostname, siteData) {
-    chrome.runtime.sendMessage({
-      action: "rerunTracking",
-      hostname: hostname
-    }, () => {
-      updateTimeList();
-      updateSiteList();
-    });
-  }
+    }
+  });
 });
