@@ -23,21 +23,25 @@ function updateTimeList() {
         const seconds = Math.floor(timeSpent % 60);
         const websiteName = hostname.replace(/^www\./, '').split('.')[0];
         
-        listItem.textContent = `${websiteName}: ${hours}h ${minutes}m ${seconds}s`;
+        let displayText = `${websiteName}: ${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+        displayText += ` (Original limit: ${siteData.initialLimit} minutes`;
         
-        if (siteData.limit) {
-          const initialLimit = siteData.initialLimit || siteData.limit;
-          const totalExtendedTime = siteData.totalExtendedTime || 0;
-          if (totalExtendedTime > 0) {
-            listItem.textContent += ` (Original limit: ${initialLimit} minutes, Extended by: ${totalExtendedTime} minutes)`;
-          } else {
-            listItem.textContent += ` (Original limit: ${initialLimit} minutes)`;
-          }
+        if (siteData.totalExtendedTime > 0) {
+          displayText += `, Extended by: ${siteData.totalExtendedTime} minutes`;
         }
+        displayText += ')';
         
         if (siteData.category) {
-          listItem.textContent += ` [${siteData.category}]`;
+          displayText += ` [${siteData.category}]`;
         }
+        
+        listItem.textContent = displayText;
+
+        // Add stop tracking button
+        const stopButton = document.createElement('button');
+        stopButton.textContent = 'Stop Tracking';
+        stopButton.onclick = () => stopTracking(hostname, siteData);
+        listItem.appendChild(stopButton);
         
         timeList.appendChild(listItem);
       }
@@ -81,43 +85,29 @@ function updateTimeList() {
     }
     
     const websiteName = hostname.replace(/^www\./, '').split('.')[0];
-    const initialLimit = siteData.initialLimit || siteData.limit;
-    const totalExtendedTime = siteData.totalExtendedTime || 0;
+    let displayText = `${websiteName} (Original limit: ${siteData.initialLimit} minutes`;
     
-    let timeDisplay = `${websiteName} (Original limit: ${initialLimit} minutes`;
-    if (totalExtendedTime > 0) {
-      timeDisplay += `, Extended by: ${totalExtendedTime} minutes)`;
-    } else {
-      timeDisplay += ')';
+    if (siteData.totalExtendedTime > 0) {
+      displayText += `, Extended by: ${siteData.totalExtendedTime} minutes`;
     }
-    timeDisplay += ` - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
+    displayText += `) - ${siteData.isTracking ? 'Tracking' : 'Not Tracking'}`;
     
-    listItem.innerHTML += timeDisplay;
+    listItem.innerHTML = displayText;
+    
+    // Add rerun button
+    const rerunButton = document.createElement('button');
+    rerunButton.textContent = 'Rerun';
+    rerunButton.onclick = () => rerunTracking(hostname, siteData);
+    listItem.appendChild(rerunButton);
   
-  if (siteData.reminder) {
-    listItem.innerHTML += ` - Reminder: ${siteData.reminder.text} at ${siteData.reminder.percentage}%`;
+    // Add edit button
+    const editButton = document.createElement('button');
+    editButton.textContent = 'Edit';
+    editButton.onclick = () => editSiteSettings(hostname, siteData);
+    listItem.appendChild(editButton);
+  
+    return listItem;
   }
-  
-  if (siteData.schedule) {
-    listItem.innerHTML += ` - Schedule: ${siteData.schedule.startTime} to ${siteData.schedule.stopTime}`;
-  }
-  
-  const categorySelect = document.createElement('select');
-  categorySelect.innerHTML = '<option value="">No Category</option>';
-  categories.forEach(category => {
-    categorySelect.innerHTML += `<option value="${category.name}" ${siteData.category === category.name ? 'selected' : ''}>${category.name}</option>`;
-  });
-  categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
-  
-  listItem.appendChild(categorySelect);
-  
-  const editButton = document.createElement('button');
-  editButton.textContent = 'Edit';
-  editButton.onclick = () => editSiteSettings(hostname, siteData);
-  listItem.appendChild(editButton);
-  
-  return listItem;
-}
 
   function editSiteSettings(hostname, siteData) {
     const dialog = document.createElement('div');
@@ -133,70 +123,44 @@ function updateTimeList() {
     `;
     dialog.innerHTML = `
       <h3>Edit Settings for ${hostname}</h3>
-      <label>
-        <input type="radio" name="timeType" value="limit" ${!siteData.schedule ? 'checked' : ''}>
-        Set Time Limit
-      </label>
-      <label>
-        <input type="radio" name="timeType" value="schedule" ${siteData.schedule ? 'checked' : ''}>
-        Set Schedule
-      </label>
-      <div id="limitSettings" ${siteData.schedule ? 'style="display:none;"' : ''}>
-        <input type="number" id="timeLimit" value="${siteData.limit || ''}" placeholder="Time limit in minutes">
-      </div>
-      <div id="scheduleSettings" ${!siteData.schedule ? 'style="display:none;"' : ''}>
-        <input type="time" id="startTime" value="${siteData.schedule ? siteData.schedule.startTime : ''}">
-        <input type="time" id="stopTime" value="${siteData.schedule ? siteData.schedule.stopTime : ''}">
+      <div>
+        <label>Original Time Limit (minutes):
+          <input type="number" id="originalLimit" value="${siteData.initialLimit}">
+        </label>
       </div>
       <div>
-        <input type="text" id="reminderText" value="${siteData.reminder ? siteData.reminder.text : ''}" placeholder="Reminder text">
-        <input type="number" id="reminderPercentage" value="${siteData.reminder ? siteData.reminder.percentage : ''}" placeholder="Reminder percentage">
+        <label>Extended Time (minutes):
+          <input type="number" id="extendedTime" value="${siteData.totalExtendedTime || 0}">
+        </label>
       </div>
       <button id="saveSettings">Save</button>
       <button id="cancelEdit">Cancel</button>
     `;
     document.body.appendChild(dialog);
-
-    const limitSettings = document.getElementById('limitSettings');
-    const scheduleSettings = document.getElementById('scheduleSettings');
-    document.querySelectorAll('input[name="timeType"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        if (e.target.value === 'limit') {
-          limitSettings.style.display = 'block';
-          scheduleSettings.style.display = 'none';
-        } else {
-          limitSettings.style.display = 'none';
-          scheduleSettings.style.display = 'block';
-        }
-      });
-    });
-
+  
     document.getElementById('saveSettings').addEventListener('click', () => {
-      const newData = { ...siteData };
-      const timeType = document.querySelector('input[name="timeType"]:checked').value;
-      if (timeType === 'limit') {
-        newData.limit = parseInt(document.getElementById('timeLimit').value);
-        delete newData.schedule;
-      } else {
-        newData.schedule = {
-          startTime: document.getElementById('startTime').value,
-          stopTime: document.getElementById('stopTime').value
-        };
-        delete newData.limit;
+      const newOriginalLimit = parseInt(document.getElementById('originalLimit').value);
+      const newExtendedTime = parseInt(document.getElementById('extendedTime').value);
+      
+      const updatedData = {
+        ...siteData,
+        initialLimit: newOriginalLimit,
+        totalExtendedTime: newExtendedTime
+      };
+  
+      if (siteData.isTracking) {
+        if (confirm('Changes will take effect when tracking is restarted. Stop tracking now?')) {
+          updatedData.isTracking = false;
+        }
       }
-      const reminderText = document.getElementById('reminderText').value;
-      const reminderPercentage = parseInt(document.getElementById('reminderPercentage').value);
-      if (reminderText && reminderPercentage) {
-        newData.reminder = { text: reminderText, percentage: reminderPercentage };
-      } else {
-        delete newData.reminder;
-      }
-      chrome.storage.local.set({ [hostname]: newData }, () => {
+  
+      chrome.storage.local.set({ [hostname]: updatedData }, () => {
         document.body.removeChild(dialog);
         updateSiteList();
+        updateTimeList();
       });
     });
-
+  
     document.getElementById('cancelEdit').addEventListener('click', () => {
       document.body.removeChild(dialog);
     });
@@ -419,4 +383,24 @@ function updateTimeList() {
   updateTimeList();
   updateSiteList();
   updateCategoryList();
+
+  function stopTracking(hostname, siteData) {
+    chrome.runtime.sendMessage({
+      action: "stopTracking",
+      hostname: hostname
+    }, () => {
+      updateTimeList();
+      updateSiteList();
+    });
+  }
+  
+  function rerunTracking(hostname, siteData) {
+    chrome.runtime.sendMessage({
+      action: "rerunTracking",
+      hostname: hostname
+    }, () => {
+      updateTimeList();
+      updateSiteList();
+    });
+  }
 });

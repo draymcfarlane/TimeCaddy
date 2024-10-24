@@ -56,14 +56,23 @@ function handleTabChange(tabId) {
         } else if (data[hostname].isTracking) {
           if (data[hostname].schedule) {
             checkSchedule(hostname, data[hostname].schedule);
-          } else if (data[hostname].limit) {
+          } else {
             const timeSpent = data[hostname].time || 0;
-            const limitMs = data[hostname].limit * 60 * 1000;
-            if (timeSpent < limitMs) {
-              const remainingTime = (limitMs - timeSpent) / 60000;
+            const initialLimit = data[hostname].initialLimit;
+            const totalExtendedTime = data[hostname].totalExtendedTime || 0;
+            const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
+
+            if (timeSpent < totalLimit) {
+              const remainingTime = (totalLimit - timeSpent) / 60000;
               chrome.alarms.create(hostname, { delayInMinutes: remainingTime });
             } else {
-              chrome.tabs.sendMessage(tabId, {action: "showTimeLimitReached", hostname: hostname});
+              chrome.tabs.sendMessage(tabId, {
+                action: "showTimeLimitReached", 
+                hostname: hostname,
+                currentTime: timeSpent,
+                initialLimit: initialLimit,
+                totalExtendedTime: totalExtendedTime
+              });
             }
           }
         }
@@ -84,6 +93,9 @@ function saveTimeForActiveTab() {
       if (siteData[hostname] && siteData[hostname].isTracking) {
         const currentTime = siteData[hostname].time || 0;
         const newTime = currentTime + timeSpent;
+        const initialLimit = siteData[hostname].initialLimit;
+        const totalExtendedTime = siteData[hostname].totalExtendedTime || 0;
+        const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
 
         chrome.storage.local.set({
           [hostname]: {
@@ -93,22 +105,15 @@ function saveTimeForActiveTab() {
         }, () => {
           chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: newTime});
 
-          if (siteData[hostname].reminder) {
-            const reminderThreshold = (siteData[hostname].limit * 60 * 1000) * (siteData[hostname].reminder.percentage / 100);
-            if (newTime >= reminderThreshold && currentTime < reminderThreshold) {
-              chrome.tabs.sendMessage(activeTabId, {
-                action: "showCustomReminder",
-                message: siteData[hostname].reminder.text
-              });
-            }
-          }
-
-          if (siteData[hostname].limit) {
-            const limitMs = siteData[hostname].limit * 60 * 1000;
-            if (newTime >= limitMs && currentTime < limitMs) {
-              chrome.tabs.sendMessage(activeTabId, {action: "showTimeLimitReached", hostname: hostname});
-              chrome.alarms.clear(hostname);
-            }
+          if (newTime >= totalLimit && currentTime < totalLimit) {
+            chrome.tabs.sendMessage(activeTabId, {
+              action: "showTimeLimitReached", 
+              hostname: hostname,
+              currentTime: newTime,
+              initialLimit: initialLimit,
+              totalExtendedTime: totalExtendedTime
+            });
+            chrome.alarms.clear(hostname);
           }
         });
       }
@@ -155,8 +160,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.storage.local.set({
       [request.hostname]: {
         time: 0,
-        limit: request.limit,
         initialLimit: request.limit,
+        totalExtendedTime: 0,
         schedule: request.schedule,
         reminder: request.reminder,
         isTracking: true,
@@ -177,30 +182,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const currentSiteData = data[request.hostname] || {};
       let updatedData = { ...currentSiteData };
 
-      // If we're extending time
       if (request.settings.extendTime) {
-        // Keep track of the initial limit if it's not already set
-        if (!updatedData.initialLimit) {
-          updatedData.initialLimit = currentSiteData.limit;
-        }
-        // Add the new extended time to the current limit
-        updatedData.limit = currentSiteData.limit + request.settings.extendTime;
-        // Keep track of total extended time
-        updatedData.totalExtendedTime = (currentSiteData.totalExtendedTime || 0) + request.settings.extendTime;
+        const newExtendedTime = (currentSiteData.totalExtendedTime || 0) + request.settings.extendTime;
+        updatedData = {
+          ...updatedData,
+          totalExtendedTime: newExtendedTime
+        };
       } else {
-        // For other settings updates
         updatedData = { ...updatedData, ...request.settings };
       }
 
       chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
-        if (updatedData.limit) {
+        if (updatedData.initialLimit) {
           chrome.alarms.clear(request.hostname);
-          const remainingTime = (updatedData.limit * 60 * 1000 - (updatedData.time || 0)) / 60000;
-          if (remainingTime > 0) {
-            chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
+          const totalLimit = updatedData.initialLimit + (updatedData.totalExtendedTime || 0);
+          if (updatedData.isTracking) {
+            chrome.alarms.create(request.hostname, { delayInMinutes: totalLimit });
           }
         }
-        // Notify popup to update displayed information
         chrome.runtime.sendMessage({
           action: "siteSettingsUpdated",
           hostname: request.hostname,
@@ -216,8 +215,54 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const siteData = data[request.hostname] || {};
       siteData.dismissedUntil = dismissUntil;
       chrome.storage.local.set({ [request.hostname]: siteData }, () => {
-        // Set an alarm to show the notification again after the dismiss period
         chrome.alarms.create(`dismiss_${request.hostname}`, { when: dismissUntil });
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "stopTracking") {
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname];
+      const updatedData = {
+        ...siteData,
+        isTracking: false
+      };
+      chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
+        chrome.alarms.clear(request.hostname);
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "rerunTracking") {
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname];
+      const updatedData = {
+        ...siteData,
+        isTracking: true,
+        time: 0
+      };
+      chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
+        const totalLimit = (updatedData.initialLimit + (updatedData.totalExtendedTime || 0));
+        chrome.alarms.create(request.hostname, { delayInMinutes: totalLimit });
+        sendResponse({success: true});
+      });
+    });
+    return true;
+  } else if (request.action === "extendTime") {
+    chrome.storage.local.get(request.hostname, (data) => {
+      const siteData = data[request.hostname];
+      const newExtendedTime = (siteData.totalExtendedTime || 0) + request.additionalTime;
+      const updatedData = {
+        ...siteData,
+        totalExtendedTime: newExtendedTime
+      };
+
+      chrome.storage.local.set({ [request.hostname]: updatedData }, () => {
+        const totalLimit = (siteData.initialLimit + newExtendedTime) * 60 * 1000;
+        const remainingTime = (totalLimit - siteData.time) / 60000;
+        if (remainingTime > 0) {
+          chrome.alarms.create(request.hostname, { delayInMinutes: remainingTime });
+        }
         sendResponse({success: true});
       });
     });
