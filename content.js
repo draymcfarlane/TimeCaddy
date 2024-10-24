@@ -263,7 +263,9 @@ function showCustomReminder(message) {
   document.body.appendChild(reminderElement);
 
   setTimeout(() => {
-    document.body.removeChild(reminderElement);
+    if (reminderElement && reminderElement.parentNode) {
+      document.body.removeChild(reminderElement);
+    }
   }, 5000);
 }
 
