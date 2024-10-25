@@ -80,7 +80,7 @@ function showTimeSettingsPrompt(hostname, category, suggestedLimit) {
     </div>
     <div>
       <input type="text" id="reminderText" placeholder="Reminder text">
-      <input type="number" id="reminderPercentage" placeholder="Reminder percentage">
+      <input type="number" id="reminderPercentage" placeholder="Reminder percentage (0-100)">
     </div>
     <button id="saveSettings">Save</button>
   `;
@@ -111,9 +111,9 @@ function showTimeSettingsPrompt(hostname, category, suggestedLimit) {
         stopTime: document.getElementById('stopTime').value
       };
     }
-    const reminderText = document.getElementById('reminderText').value;
+    const reminderText = document.getElementById('reminderText').value.trim();
     const reminderPercentage = parseInt(document.getElementById('reminderPercentage').value);
-    if (reminderText && reminderPercentage) {
+    if (reminderText && !isNaN(reminderPercentage) && reminderPercentage >= 0 && reminderPercentage <= 100) {
       settings.reminder = { text: reminderText, percentage: reminderPercentage };
     }
     chrome.runtime.sendMessage({
@@ -130,124 +130,122 @@ function showTimeSettingsPrompt(hostname, category, suggestedLimit) {
 }
 
 function showTimeLimitReachedNotification(hostname, data = {}) {
-  chrome.storage.local.get(hostname, (siteData) => {
-    if (overlayElement) {
-      document.body.removeChild(overlayElement);
-    }
+  if (overlayElement) {
+    document.body.removeChild(overlayElement);
+  }
 
-    overlayElement = document.createElement('div');
-    overlayElement.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 2147483647;
-    `;
+  overlayElement = document.createElement('div');
+  overlayElement.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2147483647;
+  `;
 
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      background: #ff4d4d;
-      color: white;
-      padding: 20px;
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    background: #ff4d4d;
+    color: white;
+    padding: 20px;
+    border-radius: 5px;
+    font-size: 24px;
+    text-align: center;
+  `;
+
+  notification.innerHTML = `
+    <p>Time limit reached for ${hostname}!</p>
+    <button id="extendBtn" style="
+      background: white;
+      color: #ff4d4d;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
       border-radius: 5px;
-      font-size: 24px;
-      text-align: center;
-    `;
+      cursor: pointer;
+      font-size: 18px;
+    ">Extend Time</button>
+    <button id="stopBtn" style="
+      background: white;
+      color: #ff4d4d;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 18px;
+    ">Stop Tracking</button>
+    <button id="dismissBtn" style="
+      background: white;
+      color: #ff4d4d;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 18px;
+    ">Dismiss for 5 minutes</button>
+  `;
 
-    const initialLimit = siteData[hostname].initialLimit;
-    const totalExtendedTime = siteData[hostname].totalExtendedTime || 0;
-    const totalTime = initialLimit + totalExtendedTime;
+  overlayElement.appendChild(notification);
+  document.body.appendChild(overlayElement);
 
-    notification.innerHTML = `
-      <p>Time limit reached for ${hostname}!</p>
-      <p>Original limit: ${initialLimit} minutes</p>
-      ${totalExtendedTime > 0 ? `<p>Extended time: ${totalExtendedTime} minutes</p>` : ''}
-      <p>Total time: ${totalTime} minutes</p>
-      <button id="extendBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Extend Time</button>
-      <button id="stopBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Stop Tracking</button>
-      <button id="dismissBtn" style="
-        background: white;
-        color: #ff4d4d;
-        border: none;
-        padding: 10px 20px;
-        margin: 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 18px;
-      ">Dismiss for 5 minutes</button>
-    `;
+  document.getElementById('extendBtn').addEventListener('click', () => {
+    const additionalTime = prompt("Enter additional time in minutes:", "30");
+    if (additionalTime !== null) {
+      chrome.runtime.sendMessage({
+        action: "extendTime",
+        hostname: hostname,
+        additionalTime: parseInt(additionalTime)
+      }, () => {
+        if (overlayElement) {
+          document.body.removeChild(overlayElement);
+          overlayElement = null;
+        }
+      });
+    }
+  });
 
-    overlayElement.appendChild(notification);
-    document.body.appendChild(overlayElement);
-
-    document.getElementById('extendBtn').addEventListener('click', () => {
-      const additionalTime = prompt("Enter additional time in minutes:", "30");
-      if (additionalTime !== null) {
-        chrome.runtime.sendMessage({
-          action: "extendTime",
-          hostname: hostname,
-          additionalTime: parseInt(additionalTime)
-        }, () => {
-          if (overlayElement) {
-            document.body.removeChild(overlayElement);
-            overlayElement = null;
-          }
-        });
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      action: "stopTracking",
+      hostname: hostname
+    }, () => {
+      if (overlayElement) {
+        document.body.removeChild(overlayElement);
+        overlayElement = null;
       }
     });
+  });
 
-    document.getElementById('stopBtn').addEventListener('click', () => {
-      chrome.runtime.sendMessage({
-        action: "stopTracking",
-        hostname: hostname
-      }, () => {
-        if (overlayElement) {
-          document.body.removeChild(overlayElement);
-          overlayElement = null;
-        }
-      });
-    });
-
-    document.getElementById('dismissBtn').addEventListener('click', () => {
-      chrome.runtime.sendMessage({
-        action: "dismissNotification",
-        hostname: hostname,
-        dismissDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
-      }, () => {
-        if (overlayElement) {
-          document.body.removeChild(overlayElement);
-          overlayElement = null;
-        }
-      });
+  document.getElementById('dismissBtn').addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      action: "dismissNotification",
+      hostname: hostname,
+      dismissDuration: 5 * 60 * 1000 // 5 minutes in milliseconds
+    }, () => {
+      if (overlayElement) {
+        document.body.removeChild(overlayElement);
+        overlayElement = null;
+      }
     });
   });
 }
 
 function showCustomReminder(message) {
+  // Remove any existing reminder
+  const existingReminder = document.getElementById('customReminder');
+  if (existingReminder) {
+    existingReminder.remove();
+  }
+
   const reminderElement = document.createElement('div');
+  reminderElement.id = 'customReminder';
   reminderElement.style.cssText = `
     position: fixed;
     top: 0;
@@ -255,16 +253,19 @@ function showCustomReminder(message) {
     right: 0;
     background: #4CAF50;
     color: white;
-    padding: 10px;
+    padding: 15px;
     text-align: center;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
     z-index: 2147483647;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   `;
   reminderElement.textContent = message;
   document.body.appendChild(reminderElement);
 
   setTimeout(() => {
     if (reminderElement && reminderElement.parentNode) {
-      document.body.removeChild(reminderElement);
+      reminderElement.remove();
     }
   }, 5000);
 }
@@ -304,11 +305,13 @@ function showScheduledTrackingPrompt(action, hostname) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Content script received message:', request);
   if (request.action === "promptTrack") {
     createPromptDialog(request.hostname);
   } else if (request.action === "showTimeLimitReached") {
     showTimeLimitReachedNotification(request.hostname, request);
   } else if (request.action === "showCustomReminder") {
+    console.log('Showing custom reminder:', request.message);
     showCustomReminder(request.message);
   } else if (request.action === "startScheduledTracking") {
     showScheduledTrackingPrompt('start', request.hostname);

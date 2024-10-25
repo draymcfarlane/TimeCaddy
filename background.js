@@ -60,7 +60,7 @@ function handleTabChange(tabId) {
             const timeSpent = data[hostname].time || 0;
             const initialLimit = data[hostname].initialLimit;
             const totalExtendedTime = data[hostname].totalExtendedTime || 0;
-            const totalTimeLimit = (initialLimit + totalExtendedTime) * 60 * 1000; // Total time limit in milliseconds
+            const totalTimeLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
 
             if (timeSpent < totalTimeLimit) {
               const remainingTime = (totalTimeLimit - timeSpent) / 60000;
@@ -105,11 +105,14 @@ function saveTimeForActiveTab() {
         }, () => {
           chrome.runtime.sendMessage({action: "updateTime", hostname: hostname, time: newTime});
 
-          // Check reminder first
+          // Handle reminder
           if (siteData[hostname].reminder) {
-            const totalLimit = (initialLimit + totalExtendedTime) * 60 * 1000;
-            const reminderThreshold = totalLimit * (siteData[hostname].reminder.percentage / 100);
+            console.log('Checking reminder condition:', siteData[hostname].reminder);
+            const reminderThreshold = totalTimeLimit * (siteData[hostname].reminder.percentage / 100);
+            console.log('Current time:', newTime, 'Reminder threshold:', reminderThreshold);
+            
             if (newTime >= reminderThreshold && currentTime < reminderThreshold) {
+              console.log('Sending reminder message:', siteData[hostname].reminder.text);
               chrome.tabs.sendMessage(activeTabId, {
                 action: "showCustomReminder",
                 message: siteData[hostname].reminder.text
@@ -117,7 +120,7 @@ function saveTimeForActiveTab() {
             }
           }
 
-          // Then check total time limit
+          // Handle time limit
           if (newTime >= totalTimeLimit && currentTime < totalTimeLimit) {
             chrome.tabs.sendMessage(activeTabId, {
               action: "showTimeLimitReached", 
