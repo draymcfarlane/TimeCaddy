@@ -4,10 +4,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(button => {
     button.addEventListener('click', () => {
+      // Remove active class from all buttons and contents
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      // Add active class to clicked button and corresponding content
+      button.classList.add('active');
       document.getElementById(button.dataset.tab).classList.add('active');
     });
   });
+
+  // Set initial active tab if none is active
+  if (!document.querySelector('.tab-btn.active')) {
+    document.querySelector('.tab-btn').classList.add('active');
+    document.querySelector('.tab-content').classList.add('active');
+  }
 
   // Display time spent on websites
   function updateTimeList() {
@@ -75,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function createSiteListItem(hostname, siteData, categories) {
     const listItem = document.createElement('div');
+    listItem.className = 'site-list-item';
     
     if (isEditMode) {
       const checkbox = document.createElement('input');
@@ -108,20 +120,42 @@ document.addEventListener('DOMContentLoaded', () => {
     categorySelect.onchange = (e) => updateSiteCategory(hostname, e.target.value);
     listItem.appendChild(categorySelect);
     
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'site-actions';
+
     const rerunButton = document.createElement('button');
     rerunButton.textContent = 'Rerun';
     rerunButton.onclick = () => rerunTracking(hostname);
-    listItem.appendChild(rerunButton);
+    actionsDiv.appendChild(rerunButton);
 
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit';
     editButton.onclick = () => editSiteSettings(hostname, siteData);
-    listItem.appendChild(editButton);
+    actionsDiv.appendChild(editButton);
 
+    listItem.appendChild(actionsDiv);
     return listItem;
   }
 
+  // Create overlay for modal dialogs
+  function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    `;
+    return overlay;
+  }
+
   function editSiteSettings(hostname, siteData) {
+    const overlay = createOverlay();
+    document.body.appendChild(overlay);
+
     const dialog = document.createElement('div');
     dialog.style.cssText = `
       position: fixed;
@@ -130,13 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
       transform: translate(-50%, -50%);
       background: white;
       padding: 20px;
-      border: 1px solid #ccc;
-      z-index: 1000;
-      width: 300px;
+      border-radius: 8px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1001;
+      width: 280px;
     `;
     dialog.innerHTML = `
-      <h3>Edit Settings for ${hostname}</h3>
+      <h3 style="margin-top: 0;">Edit Settings for ${hostname}</h3>
       <div>
         <label>Original Time Limit (minutes):
           <input type="number" id="originalLimit" value="${siteData.initialLimit}" min="1">
@@ -157,12 +191,17 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="number" id="reminderPercentage" value="${siteData.reminder ? siteData.reminder.percentage : ''}" min="0" max="100" placeholder="Enter percentage (0-100)">
         </label>
       </div>
-      <div style="margin-top: 15px;">
-        <button id="saveSettings" style="margin-right: 10px;">Save</button>
-        <button id="cancelEdit">Cancel</button>
+      <div style="margin-top: 15px; text-align: right;">
+        <button id="saveSettings" style="margin-right: 10px; background: #4CAF50;">Save</button>
+        <button id="cancelEdit" style="background: #9e9e9e;">Cancel</button>
       </div>
     `;
     document.body.appendChild(dialog);
+
+    function closeDialog() {
+      document.body.removeChild(dialog);
+      document.body.removeChild(overlay);
+    }
 
     document.getElementById('saveSettings').addEventListener('click', () => {
       const newOriginalLimit = parseInt(document.getElementById('originalLimit').value);
@@ -176,9 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         totalExtendedTime: newExtendedTime
       };
 
-      // Handle reminder settings
       if (reminderText && !isNaN(reminderPercentage) && reminderPercentage >= 0 && reminderPercentage <= 100) {
-        console.log('Setting reminder:', { text: reminderText, percentage: reminderPercentage });
         updatedData.reminder = {
           text: reminderText,
           percentage: reminderPercentage
@@ -191,49 +228,248 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (siteData.isTracking) {
-        if (confirm('Changes will take effect when tracking is restarted. Stop tracking now?')) {
-          updatedData.isTracking = false;
+        closeDialog();
+        
+        const confirmOverlay = createOverlay();
+        document.body.appendChild(confirmOverlay);
+        
+        const confirmDialog = document.createElement('div');
+        confirmDialog.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          z-index: 1001;
+          width: 280px;
+          text-align: center;
+        `;
+        
+        confirmDialog.innerHTML = `
+          <h3 style="margin-top: 0;">Time Management Extension</h3>
+          <p style="margin: 15px 0;">Changes require restarting tracking.</p>
+          <button id="restartNow" style="
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Save changes and restart tracking now</button>
+          <button id="saveOnly" style="
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Save changes without restarting</button>
+          <button id="cancelChanges" style="
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #9e9e9e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Cancel</button>
+        `;
+
+        document.body.appendChild(confirmDialog);
+
+        function closeConfirmDialog() {
+          document.body.removeChild(confirmDialog);
+          document.body.removeChild(confirmOverlay);
         }
+
+        document.getElementById('restartNow').addEventListener('click', () => {
+          updatedData.isTracking = false;
+          chrome.storage.local.set({ [hostname]: updatedData }, () => {
+            closeConfirmDialog();
+            rerunTracking(hostname);
+          });
+        });
+
+        document.getElementById('saveOnly').addEventListener('click', () => {
+          chrome.storage.local.set({ [hostname]: updatedData }, () => {
+            closeConfirmDialog();
+            updateSiteList();
+            updateTimeList();
+          });
+        });
+
+        document.getElementById('cancelChanges').addEventListener('click', closeConfirmDialog);
+      } else {
+        chrome.storage.local.set({ [hostname]: updatedData }, () => {
+          closeDialog();
+          updateSiteList();
+          updateTimeList();
+        });
       }
-
-      chrome.storage.local.set({ [hostname]: updatedData }, () => {
-        console.log('Saved site data with reminder:', updatedData);
-        document.body.removeChild(dialog);
-        updateSiteList();
-        updateTimeList();
-      });
     });
 
-    document.getElementById('cancelEdit').addEventListener('click', () => {
-      document.body.removeChild(dialog);
-    });
+    document.getElementById('cancelEdit').addEventListener('click', closeDialog);
   }
 
   function stopTracking(hostname) {
-    chrome.runtime.sendMessage({
-      action: "stopTracking",
-      hostname: hostname
-    }, () => {
-      // Remove from Track tab immediately
-      const timeList = document.getElementById('timeList');
-      const item = Array.from(timeList.children).find(li => li.textContent.includes(hostname));
-      if (item) {
-        timeList.removeChild(item);
-      }
-      updateSiteList(); // Update Manage tab
-    });
-  }
+    const overlay = createOverlay();
+    document.body.appendChild(overlay);
 
-  function rerunTracking(hostname) {
-    if (confirm('This will reset the tracking and remove any time extensions. Continue?')) {
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1001;
+      width: 280px;
+      text-align: center;
+    `;
+    
+    dialog.innerHTML = `
+      <h3 style="margin-top: 0;">Time Management Extension</h3>
+      <p style="margin: 15px 0;">Are you sure you want to stop tracking this site?</p>
+      <button id="confirmStop" style="
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f44336;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Stop Tracking</button>
+      <button id="cancelStop" style="
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #9e9e9e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Cancel</button>
+    `;
+
+    document.body.appendChild(dialog);
+
+    function closeDialog() {
+      document.body.removeChild(dialog);
+      document.body.removeChild(overlay);
+    }
+
+    document.getElementById('confirmStop').addEventListener('click', () => {
       chrome.runtime.sendMessage({
-        action: "rerunTracking",
-        hostname: hostname,
+        action: "stopTracking",
+        hostname: hostname
       }, () => {
+        closeDialog();
         updateTimeList();
         updateSiteList();
       });
+    });
+
+    document.getElementById('cancelStop').addEventListener('click', closeDialog);
+  }
+
+  function rerunTracking(hostname) {
+    const overlay = createOverlay();
+    document.body.appendChild(overlay);
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1001;
+      width: 280px;
+      text-align: center;
+    `;
+    
+    dialog.innerHTML = `
+      <h3 style="margin-top: 0;">Time Management Extension</h3>
+      <p style="margin: 15px 0;">Choose an option:</p>
+      <button id="keepSettings" style="
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Reset tracking and keep current time settings</button>
+      <button id="removeSettings" style="
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f44336;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Reset tracking and remove time extensions</button>
+      <button id="cancelRerun" style="
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #9e9e9e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Cancel</button>
+    `;
+
+    document.body.appendChild(dialog);
+
+    function closeDialog() {
+      document.body.removeChild(dialog);
+      document.body.removeChild(overlay);
     }
+
+    document.getElementById('keepSettings').addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: "rerunTracking",
+        hostname: hostname,
+        preserveSettings: true
+      }, () => {
+        closeDialog();
+        updateTimeList();
+        updateSiteList();
+      });
+    });
+
+    document.getElementById('removeSettings').addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: "rerunTracking",
+        hostname: hostname,
+        preserveSettings: false
+      }, () => {
+        closeDialog();
+        updateTimeList();
+        updateSiteList();
+      });
+    });
+
+    document.getElementById('cancelRerun').addEventListener('click', closeDialog);
   }
 
   function updateSiteCategory(hostname, category) {
@@ -297,12 +533,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedCheckboxes = document.querySelectorAll('.site-checkbox:checked');
     const hostnamesToDelete = Array.from(selectedCheckboxes).map(cb => cb.dataset.hostname);
     
-    if (hostnamesToDelete.length > 0 && confirm(`Are you sure you want to delete ${hostnamesToDelete.length} selected sites?`)) {
-      chrome.storage.local.remove(hostnamesToDelete, () => {
-        hostnamesToDelete.forEach(hostname => chrome.alarms.clear(hostname));
-        updateSiteList();
-        updateTimeList();
+    if (hostnamesToDelete.length > 0) {
+      const overlay = createOverlay();
+      document.body.appendChild(overlay);
+
+      const dialog = document.createElement('div');
+      dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 1001;
+        width: 280px;
+        text-align: center;
+      `;
+      
+      dialog.innerHTML = `
+        <h3 style="margin-top: 0;">Time Management Extension</h3>
+        <p style="margin: 15px 0;">Are you sure you want to delete ${hostnamesToDelete.length} selected sites?</p>
+        <button id="confirmDelete" style="
+          width: 100%;
+          padding: 10px;
+          margin: 5px 0;
+          background: #f44336;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        ">Delete Selected Sites</button>
+        <button id="cancelDelete" style="
+          width: 100%;
+          padding: 10px;
+          margin: 5px 0;
+          background: #9e9e9e;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        ">Cancel</button>
+      `;
+
+      document.body.appendChild(dialog);
+
+      function closeDialog() {
+        document.body.removeChild(dialog);
+        document.body.removeChild(overlay);
+      }
+
+      document.getElementById('confirmDelete').addEventListener('click', () => {
+        chrome.storage.local.remove(hostnamesToDelete, () => {
+          hostnamesToDelete.forEach(hostname => chrome.alarms.clear(hostname));
+          closeDialog();
+          updateSiteList();
+          updateTimeList();
+        });
       });
+
+      document.getElementById('cancelDelete').addEventListener('click', closeDialog);
     }
   }
 
@@ -312,6 +603,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const addNewCategoryBtn = document.getElementById('addNewCategory');
   const categoryList = document.querySelector('.category-list');
 
+  if (categorySearch && searchButton) {
+    searchButton.addEventListener('click', () => {
+      updateCategoryList(categorySearch.value);
+    });
+  }
+
+  if (addNewCategoryBtn) {
+    addNewCategoryBtn.addEventListener('click', () => {
+      const name = prompt('Enter category name:');
+      const limit = parseInt(prompt('Enter suggested time limit (minutes):'));
+      if (name && !isNaN(limit) && limit > 0) {
+        addCategory(name, limit);
+      }
+    });
+  }
+
   function updateCategoryList(filterText = '') {
     chrome.storage.sync.get('categories', (data) => {
       const categories = data.categories || [];
@@ -319,24 +626,34 @@ document.addEventListener('DOMContentLoaded', () => {
         category.name.toLowerCase().includes(filterText.toLowerCase())
       );
       
-      while (categoryList.children.length > 3) {
+      while (categoryList && categoryList.children.length > 3) {
         categoryList.removeChild(categoryList.lastChild);
       }
 
       filteredCategories.forEach((category, index) => {
-        const editBtn = document.createElement('button');
-        editBtn.textContent = 'edit';
-        editBtn.onclick = () => editCategory(index);
+        if (categoryList) {
+          const row = document.createElement('div');
+          row.className = 'category-row';
 
-        const nameDiv = document.createElement('div');
-        nameDiv.textContent = category.name;
+          const nameDiv = document.createElement('div');
+          nameDiv.textContent = category.name;
 
-        const timeDiv = document.createElement('div');
-        timeDiv.textContent = formatTime(category.suggestedLimit);
+          const timeDiv = document.createElement('div');
+          timeDiv.textContent = formatTime(category.suggestedLimit);
 
-        categoryList.appendChild(editBtn);
-        categoryList.appendChild(nameDiv);
-        categoryList.appendChild(timeDiv);
+          const actionsDiv = document.createElement('div');
+          if (index >= presetCategories.length) {
+            const editBtn = document.createElement('button');
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = () => editCategory(index);
+            actionsDiv.appendChild(editBtn);
+          }
+
+          row.appendChild(nameDiv);
+          row.appendChild(timeDiv);
+          row.appendChild(actionsDiv);
+          categoryList.appendChild(row);
+        }
       });
     });
   }
@@ -355,7 +672,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initial population of the lists
+  function addCategory(name, limit) {
+    chrome.storage.sync.get('categories', (data) => {
+      const categories = data.categories || [];
+      if (!categories.some(cat => cat.name === name)) {
+        categories.push({ name, suggestedLimit: limit });
+        chrome.storage.sync.set({ categories }, () => {
+          updateCategoryList();
+        });
+      } else {
+        alert('A category with this name already exists.');
+      }
+    });
+  }
+
+  function editCategory(index) {
+    chrome.storage.sync.get('categories', (data) => {
+      const categories = data.categories || [];
+      const category = categories[index];
+      
+      if (index < presetCategories.length) {
+        alert('Preset categories cannot be edited.');
+        return;
+      }
+
+      const newName = prompt('Enter new category name:', category.name);
+      if (newName === null) return;
+
+      const newLimit = parseInt(prompt('Enter new suggested time limit (minutes):', category.suggestedLimit));
+      if (isNaN(newLimit) || newLimit <= 0) {
+        alert('Please enter a valid time limit.');
+        return;
+      }
+
+      categories[index] = {
+        name: newName,
+        suggestedLimit: newLimit
+      };
+
+      chrome.storage.sync.set({ categories }, () => {
+        updateCategoryList();
+        updateSiteList();
+      });
+    });
+  }
+
+  // Initial population of lists
   updateTimeList();
   updateSiteList();
   updateCategoryList();
@@ -369,6 +731,43 @@ document.addEventListener('DOMContentLoaded', () => {
       updateSiteList();
     }
   });
-});
 
-//test
+  // Add window resize handler for dialog positioning
+  window.addEventListener('resize', () => {
+    const dialog = document.querySelector('.edit-dialog');
+    if (dialog) {
+      const rect = dialog.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      if (rect.right > viewportWidth) {
+        dialog.style.left = (viewportWidth - rect.width - 20) + 'px';
+      }
+      if (rect.bottom > viewportHeight) {
+        dialog.style.top = (viewportHeight - rect.height - 20) + 'px';
+      }
+    }
+  });
+
+  // Add keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Escape key closes dialogs
+    if (e.key === 'Escape') {
+      const dialog = document.querySelector('.edit-dialog');
+      if (dialog) {
+        document.body.removeChild(dialog);
+      }
+      if (isEditMode) {
+        toggleEditMode();
+      }
+    }
+    
+    // Enter key in edit mode confirms changes
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const saveButton = document.querySelector('#saveSettings');
+      if (saveButton) {
+        saveButton.click();
+      }
+    }
+  });
+});
