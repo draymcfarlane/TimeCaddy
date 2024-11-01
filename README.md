@@ -30,3 +30,4 @@ https://www.figma.com/design/SAO4ja5cJzNIgKcLBMwtkJ/TimeCaddy?node-id=0-1&node-t
 - [ ] Upon opening the extension, have the Live tracker tab open, rather than having to click to open. (Might end up scrapping this idea, still debating)
 
 
+https://www.figma.com/design/SAO4ja5cJzNIgKcLBMwtkJ/TimeCaddy?node-id=0-1&node-type=canvas&t=sGlUA8x768i62kpQ-0
