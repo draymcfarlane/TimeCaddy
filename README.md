@@ -29,4 +29,4 @@ https://www.figma.com/design/SAO4ja5cJzNIgKcLBMwtkJ/TimeCaddy?node-id=0-1&node-t
 - [ ] Add a way for the extension to remember bookmarked tabs on next session.
 - [ ] Upon opening the extension, have the Live tracker tab open, rather than having to click to open. (Might end up scrapping this idea, still debating)
 
-
+test
