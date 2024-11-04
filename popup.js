@@ -291,15 +291,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('restartNow').addEventListener('click', () => {
-          updatedData.isTracking = false;
-          chrome.storage.local.set({ [hostname]: updatedData }, () => {
+          chrome.runtime.sendMessage({
+            action: "updateSiteSettings",
+            hostname: hostname,
+            settings: {
+              ...updatedData,
+              isTracking: false,
+              time: 0
+            },
+            preserveTracking: false
+          }, () => {
             closeConfirmDialog();
-            rerunTracking(hostname);
+            chrome.runtime.sendMessage({
+              action: "rerunTracking",
+              hostname: hostname,
+              preserveSettings: true
+            });
           });
         });
 
         document.getElementById('saveOnly').addEventListener('click', () => {
-          chrome.storage.local.set({ [hostname]: updatedData }, () => {
+          chrome.runtime.sendMessage({
+            action: "updateSiteSettings",
+            hostname: hostname,
+            settings: updatedData,
+            preserveTracking: true
+          }, () => {
             closeConfirmDialog();
             updateSiteList();
             updateTimeList();
@@ -308,7 +325,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('cancelChanges').addEventListener('click', closeConfirmDialog);
       } else {
-        chrome.storage.local.set({ [hostname]: updatedData }, () => {
+        chrome.runtime.sendMessage({
+          action: "updateSiteSettings",
+          hostname: hostname,
+          settings: updatedData,
+          preserveTracking: true
+        }, () => {
           closeDialog();
           updateSiteList();
           updateTimeList();
@@ -597,130 +619,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Category functionality
-  const categorySearch = document.getElementById('categorySearch');
-  const searchButton = document.getElementById('searchButton');
-  const addNewCategoryBtn = document.getElementById('addNewCategory');
-  const categoryList = document.querySelector('.category-list');
-
-  if (categorySearch && searchButton) {
-    searchButton.addEventListener('click', () => {
-      updateCategoryList(categorySearch.value);
-    });
-  }
-
-  if (addNewCategoryBtn) {
-    addNewCategoryBtn.addEventListener('click', () => {
-      const name = prompt('Enter category name:');
-      const limit = parseInt(prompt('Enter suggested time limit (minutes):'));
-      if (name && !isNaN(limit) && limit > 0) {
-        addCategory(name, limit);
-      }
-    });
-  }
-
-  function updateCategoryList(filterText = '') {
-    chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
-      const filteredCategories = categories.filter(category => 
-        category.name.toLowerCase().includes(filterText.toLowerCase())
-      );
-      
-      while (categoryList && categoryList.children.length > 3) {
-        categoryList.removeChild(categoryList.lastChild);
-      }
-
-      filteredCategories.forEach((category, index) => {
-        if (categoryList) {
-          const row = document.createElement('div');
-          row.className = 'category-row';
-
-          const nameDiv = document.createElement('div');
-          nameDiv.textContent = category.name;
-
-          const timeDiv = document.createElement('div');
-          timeDiv.textContent = formatTime(category.suggestedLimit);
-
-          const actionsDiv = document.createElement('div');
-          if (index >= presetCategories.length) {
-            const editBtn = document.createElement('button');
-            editBtn.textContent = 'Edit';
-            editBtn.onclick = () => editCategory(index);
-            actionsDiv.appendChild(editBtn);
-          }
-
-          row.appendChild(nameDiv);
-          row.appendChild(timeDiv);
-          row.appendChild(actionsDiv);
-          categoryList.appendChild(row);
-        }
-      });
-    });
-  }
-
-  function formatTime(minutes) {
-    if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      if (remainingMinutes === 0) {
-        return `${hours} hour${hours !== 1 ? 's' : ''}`;
-      } else {
-        return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
-      }
-    }
-  }
-
-  function addCategory(name, limit) {
-    chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
-      if (!categories.some(cat => cat.name === name)) {
-        categories.push({ name, suggestedLimit: limit });
-        chrome.storage.sync.set({ categories }, () => {
-          updateCategoryList();
-        });
-      } else {
-        alert('A category with this name already exists.');
-      }
-    });
-  }
-
-  function editCategory(index) {
-    chrome.storage.sync.get('categories', (data) => {
-      const categories = data.categories || [];
-      const category = categories[index];
-      
-      if (index < presetCategories.length) {
-        alert('Preset categories cannot be edited.');
-        return;
-      }
-
-      const newName = prompt('Enter new category name:', category.name);
-      if (newName === null) return;
-
-      const newLimit = parseInt(prompt('Enter new suggested time limit (minutes):', category.suggestedLimit));
-      if (isNaN(newLimit) || newLimit <= 0) {
-        alert('Please enter a valid time limit.');
-        return;
-      }
-
-      categories[index] = {
-        name: newName,
-        suggestedLimit: newLimit
-      };
-
-      chrome.storage.sync.set({ categories }, () => {
-        updateCategoryList();
-        updateSiteList();
-      });
-    });
-  }
-
   // Initial population of lists
   updateTimeList();
   updateSiteList();
-  updateCategoryList();
 
   // Listen for live updates
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
